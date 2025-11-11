@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Baustein to Zielobjekt Mapping",
+  "description": "Schema for the AI model's output when mapping a Baustein to a Zielobjekt.",
+  "type": "object",
+  "properties": {
+    "matched_zielobjekt_uuid": {
+      "description": "The UUID of the best-matched Zielobjekt, or an empty string if no match is found.",
+      "type": "string",
+      "pattern": "^(|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+    }
+  },
+  "required": ["matched_zielobjekt_uuid"]
+}

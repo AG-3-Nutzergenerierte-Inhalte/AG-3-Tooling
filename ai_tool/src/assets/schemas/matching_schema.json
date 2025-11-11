@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Schema for 1:1 Anforderung-to-Kontrolle Mapping",
+  "type": "object",
+  "properties": {
+    "mapping": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Z]{3,}\\.\\d+\\.\\d+\\.A\\d+$": {
+          "type": "string",
+          "pattern": "^GPP\\.\\d+\\.\\d+$"
+        }
+      }
+    },
+    "unmapped_gpp": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^GPP\\.\\d+\\.\\d+$"
+      }
+    },
+    "unmapped_ed2023": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z]{3,}\\.\\d+\\.\\d+\\.A\\d+$"
+      }
+    }
+  },
+  "required": ["mapping", "unmapped_gpp", "unmapped_ed2023"]
+}

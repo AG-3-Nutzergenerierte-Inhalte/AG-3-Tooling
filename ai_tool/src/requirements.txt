@@ -1,0 +1,18 @@
+# requirements.txt
+#
+# This file lists the Python dependencies for the OSCAL generation pipeline.
+# Use 'pip install -r requirements.txt' to install them.
+#
+
+# --- Google Cloud Platform ---
+# For interacting with Google Cloud services, primarily GCS and Vertex AI.
+google-cloud-storage
+google-cloud-aiplatform
+
+# --- JSON Validation ---
+# For validating JSON data against the OSCAL schemas.
+jsonschema
+
+# --- API Resilience ---
+# For implementing retry logic with exponential backoff on external API calls.
+tenacity

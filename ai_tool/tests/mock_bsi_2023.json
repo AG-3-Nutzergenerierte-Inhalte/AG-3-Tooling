@@ -1,0 +1,45 @@
+{
+  "catalog": {
+    "groups": [
+      {
+        "groups": [
+          {
+            "class": "baustein",
+            "controls": [
+              {
+                "id": "ISMS.1.A1",
+                "title": "BSI Test Control (ISMS)",
+                "parts": [
+                  {
+                    "class": "maturity-level-defined",
+                    "parts": [
+                      {
+                        "name": "statement",
+                        "prose": "This is a BSI test description for a non-allowed group that should be long enough to be truncated. This part of the text will definitely be cut off because it is well over one hundred and fifty characters long."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "SYS.1.1.A1",
+                "title": "BSI Test Control (SYS)",
+                "parts": [
+                  {
+                    "class": "maturity-level-defined",
+                    "parts": [
+                      {
+                        "name": "statement",
+                        "prose": "This is a BSI test description for an allowed group."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+# Google Cloud AI Platform for Vertex AI and Gemini Models
+# Version 1.59.0 or newer is recommended.
+google-cloud-aiplatform>=1.59.0
+
+# Google Cloud Storage for reading from and writing to GCS Buckets
+# Version 2.17.0 or newer is recommended.
+google-cloud-storage>=2.17.0

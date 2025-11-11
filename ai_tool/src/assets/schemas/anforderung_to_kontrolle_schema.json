@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Batch Anforderung to Kontrolle Mapping",
+  "description": "Schema for the AI model's output when mapping a batch of Anforderungen to G++ Kontrollen.",
+  "type": "object",
+  "properties": {
+    "matched_controls": {
+      "description": "A list of mappings between BSI controls and G++ controls.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "bsi_control_id": {
+            "description": "The ID of the BSI control.",
+            "type": "string"
+          },
+          "matched_gpp_control_id": {
+            "description": "The ID of the best-matched G++ Kontrolle, or null if no match is found.",
+            "type": "string"
+          }
+        },
+        "required": ["bsi_control_id", "matched_gpp_control_id"]
+      }
+    }
+  },
+  "required": ["matched_controls"]
+}

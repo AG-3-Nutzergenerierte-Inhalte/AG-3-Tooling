@@ -1,0 +1,70 @@
+{
+  "catalog": {
+    "groups": [
+      {
+        "groups": [
+          {
+            "controls": [
+              {
+                "id": "GPP.1.A1",
+                "title": "GPP Test Control (With Target Objects)",
+                "parts": [
+                  {
+                    "name": "statement",
+                    "prose": "This is a GPP test description for a control that has target objects.",
+                    "props": [
+                      {
+                        "name": "target_objects",
+                        "value": "zielobjekt-uuid-1"
+                      }
+                    ]
+                  }
+                ],
+                "props": [
+                  {
+                    "name": "alt-identifier",
+                    "value": "12345-uuid-with-target"
+                  }
+                ],
+                "controls": [
+                  {
+                    "id": "GPP.1.A1.1",
+                    "title": "Nested ISMS Control",
+                    "parts": [
+                      {
+                        "name": "statement",
+                        "prose": "This is a nested ISMS control."
+                      }
+                    ],
+                    "props": [
+                      {
+                        "name": "alt-identifier",
+                        "value": "nested-isms-uuid"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "GPP.2.A2",
+                "title": "GPP Test Control (ISMS)",
+                "parts": [
+                  {
+                    "name": "statement",
+                    "prose": "This is a GPP test description for a control without target objects that should be long enough to be truncated. This part of the text will definitely be cut off, as it exceeds the 150-character limit, and everything after it will be cut off."
+                  }
+                ],
+                "props": [
+                  {
+                    "name": "alt-identifier",
+                    "value": "67890-uuid-isms"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
