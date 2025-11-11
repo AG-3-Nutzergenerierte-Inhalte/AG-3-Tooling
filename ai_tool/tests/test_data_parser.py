@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, mock_open
-from ai_tool.src.utils import data_parser
+from utils import data_parser
 
 class TestDataParser(unittest.TestCase):
 

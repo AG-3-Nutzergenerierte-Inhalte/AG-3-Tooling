@@ -35,7 +35,7 @@ async def main() -> None:
     args = parser.parse_args()
 
 
-    logger.info(f"Starting OSCAL generation pipeline for stage: {args.stage}...")
+    logger.debug(f"Starting OSCAL generation pipeline for stage: {args.stage}...")
 
     if args.stage == "stage_0":
         await stage_0.run_phase_0()
@@ -47,8 +47,8 @@ async def main() -> None:
         logger.error(f"Unknown stage: {args.stage}")
 
 
-    logger.info("OSCAL generation pipeline finished successfully.")
+    logger.debug("OSCAL generation pipeline finished successfully.")
 
 
-if __name__ == "__main__":
+if __name__ in "__main__":
     asyncio.run(main())

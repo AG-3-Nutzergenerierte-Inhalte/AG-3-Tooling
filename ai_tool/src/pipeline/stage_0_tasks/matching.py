@@ -1,9 +1,8 @@
 """
 This module contains the logic for matching BSI Bausteine to G++ Zielobjekte.
-This module contains the logic for matching BSI Bausteine to G++ Zielobjekte.
 """
+import json
 import logging
-from typing import Dict, Any
 from typing import Dict, Any
 
 from clients.ai_client import AiClient

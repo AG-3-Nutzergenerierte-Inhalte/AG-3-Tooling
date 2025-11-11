@@ -91,7 +91,7 @@ async def run_stage_matching() -> None:
     """
     Executes the main steps for the matching stage.
     """
-    logger.info("Starting Stage 'Matching': 1:1 Mapping...")
+    logger.debug("Starting Stage 'Matching': 1:1 Mapping...")
 
     # --- Idempotency Check ---
     if (
@@ -135,7 +135,7 @@ async def run_stage_matching() -> None:
     )
 
     for baustein_id, zielobjekt_uuid in pairs_to_process:
-        logger.info(f"Processing mapping for Baustein '{baustein_id}' and Zielobjekt '{zielobjekt_uuid}'...")
+        logger.debug(f"Processing mapping for Baustein '{baustein_id}' and Zielobjekt '{zielobjekt_uuid}'...")
 
         gpp_control_ids = zielobjekt_controls_map.get(zielobjekt_uuid, [])
         if not gpp_control_ids:
@@ -191,4 +191,4 @@ async def run_stage_matching() -> None:
     # --- Save Output ---
     data_loader.save_json_file(final_output, CONTROLS_ANFORDERUNGEN_JSON_PATH)
 
-    logger.info("Stage 'Matching' completed successfully.")
+    logger.debug("Stage 'Matching' completed successfully.")

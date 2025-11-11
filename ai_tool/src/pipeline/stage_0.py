@@ -24,7 +24,7 @@ async def run_phase_0() -> None:
     """
     Executes the main steps for Phase 0 to generate the crosswalk files asynchronously.
     """
-    logger.info("Starting Phase 0: Crosswalk Curation...")
+    logger.debug("Starting Phase 0: Crosswalk Curation...")
 
     # --- Idempotency Check ---
     if (
@@ -70,24 +70,39 @@ async def run_phase_0() -> None:
 
     bausteine_to_process = bausteine[:3] if app_config.is_test_mode else bausteine
 
-    for baustein in bausteine_to_process:
-        matched_zielobjekt_uuid = await matching.match_baustein_to_zielobjekt(
-            ai_client,
-            baustein,
-            zielobjekte_map,
-            prompt_config["baustein_to_zielobjekt_prompt"],
-            baustein_schema,
-        )
+    sem = asyncio.Semaphore(10)
 
+    async def process_baustein_with_semaphore(
+        baustein: Dict[str, Any]
+    ) -> (Dict[str, Any], str | None):
+        """Processes a single Baustein, acquiring the semaphore before the AI call."""
+        async with sem:
+            matched_zielobjekt_uuid = await matching.match_baustein_to_zielobjekt(
+                ai_client,
+                baustein,
+                zielobjekte_map,
+                prompt_config["baustein_to_zielobjekt_prompt"],
+                baustein_schema,
+            )
+            return baustein, matched_zielobjekt_uuid
+
+    tasks = [
+        process_baustein_with_semaphore(baustein) for baustein in bausteine_to_process
+    ]
+    results = await asyncio.gather(*tasks)
+
+    for baustein, matched_zielobjekt_uuid in results:
         if matched_zielobjekt_uuid:
             bausteine_zielobjekte_map[baustein["id"]] = matched_zielobjekt_uuid
 
             # This now returns a dict of {control_id: control_title}
-            all_inherited_controls_with_titles = inheritance.get_all_inherited_controls(
-                matched_zielobjekt_uuid,
-                zielobjekte_map,
-                zielobjekt_to_gpp_controls_map,
-                gpp_control_titles,
+            all_inherited_controls_with_titles = (
+                inheritance.get_all_inherited_controls(
+                    matched_zielobjekt_uuid,
+                    zielobjekte_map,
+                    zielobjekt_to_gpp_controls_map,
+                    gpp_control_titles,
+                )
             )
 
             zielobjekt_controls_output[matched_zielobjekt_uuid] = sorted(
@@ -105,4 +120,4 @@ async def run_phase_0() -> None:
         zielobjekt_controls_output_final, ZIELOBJEKT_CONTROLS_JSON_PATH
     )
 
-    logger.info("Phase 0 completed successfully.")
+    logger.debug("Phase 0 completed successfully.")

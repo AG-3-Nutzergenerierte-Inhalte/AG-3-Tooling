@@ -52,8 +52,8 @@ class AiClient:
         
         self.semaphore = asyncio.Semaphore(config.max_concurrent_ai_requests)
 
-        logger.info(f"Vertex AI Client instantiated for project '{config.gcp_project_id}' in region '{config.region}'.")
-        logger.info(f"System Message Context includes today's date: {current_date}")
+        logger.debug(f"Vertex AI Client instantiated for project '{config.gcp_project_id}' in region '{config.region}'.")
+        logger.debug(f"System Message Context includes today's date: {current_date}")
 
     def _get_model_instance(self, model_name: str) -> GenerativeModel:
         """
@@ -66,7 +66,7 @@ class AiClient:
             GenerativeModel instance for the specified model
         """
         if model_name not in self._model_cache:
-            logger.info(f"Creating new model instance for '{model_name}'")
+            logger.debug(f"Creating new model instance for '{model_name}'")
             self._model_cache[model_name] = GenerativeModel(
                 model_name, system_instruction=self.system_message
             )
@@ -188,7 +188,7 @@ class AiClient:
         async with self.semaphore:
             for attempt in range(retries):
                 try:
-                    logger.info(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
+                    logger.debug(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
                     response = await generative_model.generate_content_async(
                         contents=contents,
                         generation_config=gen_config,
@@ -198,7 +198,7 @@ class AiClient:
 
                     response_json = self._process_response(response)
                     
-                    logger.info(f"[{request_context_log}] Successfully generated and parsed JSON response on attempt {attempt + 1}.")
+                    logger.debug(f"[{request_context_log}] Successfully generated and parsed JSON response on attempt {attempt + 1}.")
                     return response_json
 
                 # Catch only exceptions we specifically want to retry on (Rule 5.3.3).

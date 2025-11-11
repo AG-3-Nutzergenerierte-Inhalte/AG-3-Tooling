@@ -18,18 +18,19 @@ from constants import (
 )
 
 # Load mock data content as strings to be used by mock_open
-with open('ai_tool/tests/mock_gpp_kompendium.json', 'r', encoding='utf-8') as f:
+with open('tests/mock_gpp_kompendium.json', 'r', encoding='utf-8') as f:
     mock_gpp_content = f.read()
     # Also get the raw prose to calculate the correct slice for the test
     import json
     mock_gpp_prose = json.loads(mock_gpp_content)["catalog"]["groups"][0]["groups"][0]["controls"][0]["parts"][0]["prose"]
 
 
-with open('ai_tool/tests/mock_bsi_2023.json', 'r', encoding='utf-8') as f:
+with open('tests/mock_bsi_2023.json', 'r', encoding='utf-8') as f:
     mock_bsi_content = f.read()
 
 class TestStageStrip(unittest.TestCase):
 
+    @patch.dict(os.environ, {"TEST": "true"})
     @patch('pipeline.stage_strip.os.makedirs')
     @patch('pipeline.stage_strip.GPP_KOMPENDIUM_JSON_PATH', 'ai_tool/tests/mock_gpp_kompendium.json')
     @patch('pipeline.stage_strip.app_config.overwrite_temp_files', True)

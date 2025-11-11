@@ -44,4 +44,4 @@ def setup_logging() -> None:
             )
 
     logger = logging.getLogger(__name__)
-    logger.info("Logging configured for %s mode.", "test" if app_config.is_test_mode else "production")
+    logger.debug("Logging configured for %s mode.", "test" if app_config.is_test_mode else "production")

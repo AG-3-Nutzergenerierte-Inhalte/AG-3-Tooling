@@ -34,9 +34,9 @@ def parse_zielobjekte_hierarchy(zielobjekte_data: List[Dict[str, str]]) -> Dict[
     Returns:
         A dictionary mapping each Zielobjekt's UUID to its corresponding data row.
     """
-    logger.info("Parsing Zielobjekte data into a UUID lookup map...")
+    logger.debug("Parsing Zielobjekte data into a UUID lookup map...")
     zielobjekte_map = {row["UUID"]: row for row in zielobjekte_data if row.get("UUID")}
-    logger.info(f"Successfully created a lookup map for {len(zielobjekte_map)} Zielobjekte.")
+    logger.debug(f"Successfully created a lookup map for {len(zielobjekte_map)} Zielobjekte.")
     return zielobjekte_map
 
 
@@ -58,7 +58,7 @@ def parse_bsi_2023_controls(
         - The first list has Bausteine to be processed.
         - The second list has Bausteine that were filtered out.
     """
-    logger.info("Parsing BSI 2023 Bausteine and their controls...")
+    logger.debug("Parsing BSI 2023 Bausteine and their controls...")
     parsed_bausteine = []
     filtered_out_bausteine = []
 
@@ -103,7 +103,7 @@ def parse_bsi_2023_controls(
         logger.error(f"Failed to parse BSI 2023 Bausteine due to an error: {e}")
         raise
 
-    logger.info(f"Successfully parsed {len(parsed_bausteine)} Bausteine for processing.")
+    logger.debug(f"Successfully parsed {len(parsed_bausteine)} Bausteine for processing.")
     logger.info(
         f"Filtered out {len(filtered_out_bausteine)} Bausteine for later use."
     )
@@ -126,7 +126,7 @@ def parse_gpp_kompendium_controls(
         - A dictionary mapping Zielobjekt names to a list of G++ control IDs.
         - A dictionary mapping G++ control IDs to their titles.
     """
-    logger.info("Parsing G++ Kompendium for Zielobjekt-control and control-title maps...")
+    logger.debug("Parsing G++ Kompendium for Zielobjekt-control and control-title maps...")
     zielobjekt_to_controls_map = {}
     gpp_control_titles = {}
 
@@ -156,6 +156,6 @@ def parse_gpp_kompendium_controls(
         logger.error(f"Failed to parse G++ Kompendium controls due to an error: {e}")
         raise
 
-    logger.info(f"Successfully mapped {len(zielobjekt_to_controls_map)} Zielobjekte to controls.")
-    logger.info(f"Successfully parsed {len(gpp_control_titles)} G++ control titles.")
+    logger.debug(f"Successfully mapped {len(zielobjekt_to_controls_map)} Zielobjekte to controls.")
+    logger.debug(f"Successfully parsed {len(gpp_control_titles)} G++ control titles.")
     return zielobjekt_to_controls_map, gpp_control_titles

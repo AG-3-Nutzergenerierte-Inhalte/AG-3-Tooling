@@ -68,13 +68,13 @@ def _strip_gpp_file():
     them based on 'target_objects', and saves them as two markdown tables.
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"Reading G++ Kompendium file from: {GPP_KOMPENDIUM_JSON_PATH}")
+    logger.debug(f"Reading G++ Kompendium file from: {GPP_KOMPENDIUM_JSON_PATH}")
 
     if app_config.overwrite_temp_files:
         for path in [GPP_STRIPPED_MD_PATH, GPP_STRIPPED_ISMS_MD_PATH]:
             if os.path.exists(path):
                 os.remove(path)
-                logger.info(f"Removed existing file: {path}")
+                logger.debug(f"Removed existing file: {path}")
 
     try:
         with open(GPP_KOMPENDIUM_JSON_PATH, "r", encoding="utf-8") as f:
@@ -101,7 +101,7 @@ def _strip_gpp_file():
     os.makedirs(SDT_HELPER_OUTPUT_DIR, exist_ok=True)
     with open(GPP_STRIPPED_MD_PATH, "w", encoding="utf-8") as f:
         f.write(markdown_content_target)
-    logger.info(f"Successfully wrote {len(target_objects_controls)} controls with target_objects to: {GPP_STRIPPED_MD_PATH}")
+    logger.debug(f"Successfully wrote {len(target_objects_controls)} controls with target_objects to: {GPP_STRIPPED_MD_PATH}")
 
     # --- Write the file for controls WITHOUT target_objects ---
     rows_isms = [f"| {c[0]} | {c[1]} | {c[2]} | {c[3]} |" for c in isms_controls]
@@ -109,7 +109,7 @@ def _strip_gpp_file():
 
     with open(GPP_STRIPPED_ISMS_MD_PATH, "w", encoding="utf-8") as f:
         f.write(markdown_content_isms)
-    logger.info(f"Successfully wrote {len(isms_controls)} ISMS controls to: {GPP_STRIPPED_ISMS_MD_PATH}")
+    logger.debug(f"Successfully wrote {len(isms_controls)} ISMS controls to: {GPP_STRIPPED_ISMS_MD_PATH}")
 
 
 def _strip_bsi_file():
@@ -118,7 +118,7 @@ def _strip_bsi_file():
     groups, and saves them as two separate markdown tables.
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"Reading BSI 2023 file from: {BSI_2023_JSON_PATH}")
+    logger.debug(f"Reading BSI 2023 file from: {BSI_2023_JSON_PATH}")
 
     try:
         with open(BSI_2023_JSON_PATH, "r", encoding="utf-8") as f:
@@ -163,7 +163,7 @@ def _strip_bsi_file():
     os.makedirs(SDT_HELPER_OUTPUT_DIR, exist_ok=True)
     with open(BSI_STRIPPED_MD_PATH, "w", encoding="utf-8") as f:
         f.write(allowed_content)
-    logger.info(f"Successfully wrote {len(allowed_controls)} allowed BSI controls to: {BSI_STRIPPED_MD_PATH}")
+    logger.debug(f"Successfully wrote {len(allowed_controls)} allowed BSI controls to: {BSI_STRIPPED_MD_PATH}")
 
     # Write the ISMS (non-allowed) controls file
     isms_rows = [f"| {c[0]} | {c[1]} | {c[2]} |" for c in isms_controls]
@@ -171,7 +171,7 @@ def _strip_bsi_file():
 
     with open(BSI_STRIPPED_ISMS_MD_PATH, "w", encoding="utf-8") as f:
         f.write(isms_content)
-    logger.info(f"Successfully wrote {len(isms_controls)} ISMS BSI controls to: {BSI_STRIPPED_ISMS_MD_PATH}")
+    logger.debug(f"Successfully wrote {len(isms_controls)} ISMS BSI controls to: {BSI_STRIPPED_ISMS_MD_PATH}")
 
 
 def run_stage_strip():
@@ -179,9 +179,9 @@ def run_stage_strip():
     Executes the main logic of the stripping stage.
     """
     logger = logging.getLogger(__name__)
-    logger.info("Executing stage_strip...")
+    logger.debug("Executing stage_strip...")
 
     _strip_gpp_file()
     _strip_bsi_file()
 
-    logger.info("stage_strip finished.")
+    logger.debug("stage_strip finished.")
