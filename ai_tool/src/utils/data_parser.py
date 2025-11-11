@@ -159,3 +159,30 @@ def parse_gpp_kompendium_controls(
     logger.info(f"Successfully mapped {len(zielobjekt_to_controls_map)} Zielobjekte to controls.")
     logger.info(f"Successfully parsed {len(gpp_control_titles)} G++ control titles.")
     return zielobjekt_to_controls_map, gpp_control_titles
+
+
+def parse_gpp_isms_controls(markdown_content: str) -> List[str]:
+    """
+    Parses the G++ ISMS markdown file to extract a list of all control IDs.
+
+    Args:
+        markdown_content: The content of the G++ ISMS markdown file.
+
+    Returns:
+        A list of G++ ISMS control IDs.
+    """
+    logger.info("Parsing G++ ISMS markdown to extract control IDs...")
+    control_ids = []
+
+    # Regex to find the first column of a markdown table, skipping the header
+    # It looks for lines starting with '|', captures the content of the first cell,
+    # and ignores the header and separator lines.
+    for line in markdown_content.splitlines():
+        line_trimmed = line.strip()
+        if line_trimmed.startswith('|') and not line_trimmed.startswith('| ID'):
+            parts = [p.strip() for p in line_trimmed.split('|')]
+            if len(parts) > 2 and parts[1]:  # Ensure it's a valid row with an ID
+                control_ids.append(parts[1])
+
+    logger.info(f"Successfully parsed {len(control_ids)} G++ ISMS control IDs.")
+    return control_ids

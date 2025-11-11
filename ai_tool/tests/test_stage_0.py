@@ -19,9 +19,6 @@ class TestStage0(unittest.TestCase):
     @patch("pipeline.stage_0.matching.match_baustein_to_zielobjekt", new_callable=AsyncMock)
     @patch("pipeline.stage_0.inheritance.get_all_inherited_controls")
     def test_run_phase_0_generates_correct_outputs(
-    @patch("pipeline.stage_0.matching.match_baustein_to_zielobjekt", new_callable=AsyncMock)
-    @patch("pipeline.stage_0.inheritance.get_all_inherited_controls")
-    def test_run_phase_0_generates_correct_outputs(
         self,
         mock_get_inherited_controls,
         mock_match_baustein,
@@ -33,15 +30,12 @@ class TestStage0(unittest.TestCase):
         """
         Test that the refactored Stage 0 pipeline correctly generates its
         two primary output files without performing control matching.
-        Test that the refactored Stage 0 pipeline correctly generates its
-        two primary output files without performing control matching.
         """
         # --- Mock AppConfig ---
         mock_config = AppConfig()
         mock_config.is_test_mode = False
 
         # --- Mock Data Loading and Parsing ---
-        mock_baustein = {"id": "B.1", "title": "Test Baustein"}
         mock_baustein = {"id": "B.1", "title": "Test Baustein"}
         mock_data_parser.parse_bsi_2023_controls.return_value = ([mock_baustein], [])
         mock_data_parser.parse_zielobjekte_hierarchy.return_value = {"Z.1": {}}
@@ -74,22 +68,7 @@ class TestStage0(unittest.TestCase):
 
         # --- Assertions ---
         self.assertEqual(mock_data_loader.save_json_file.call_count, 2)
-        self.assertEqual(mock_data_loader.save_json_file.call_count, 2)
 
-        # Verify bausteine_zielobjekte.json
-        bausteine_call = mock_data_loader.save_json_file.call_args_list[0]
-        self.assertEqual(bausteine_call.args[1], BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
-        self.assertDictEqual(
-            bausteine_call.args[0],
-            {"bausteine_zielobjekte_map": {"B.1": "Z.1"}},
-        )
-
-        # Verify zielobjekt_controls.json
-        controls_call = mock_data_loader.save_json_file.call_args_list[1]
-        self.assertEqual(controls_call.args[1], ZIELOBJEKT_CONTROLS_JSON_PATH)
-        self.assertDictEqual(
-            controls_call.args[0],
-            {"zielobjekt_controls_map": {"Z.1": ["GPP.1", "GPP.2"]}},
         # Verify bausteine_zielobjekte.json
         bausteine_call = mock_data_loader.save_json_file.call_args_list[0]
         self.assertEqual(bausteine_call.args[1], BAUSTEINE_ZIELOBJEKTE_JSON_PATH)

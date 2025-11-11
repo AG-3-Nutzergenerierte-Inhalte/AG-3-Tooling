@@ -10,7 +10,7 @@ import logging
 import asyncio
 import argparse
 
-from pipeline import stage_0, stage_strip, stage_matching
+from pipeline import stage_0, stage_strip, stage_matching, stage_profiles
 from utils.logger import setup_logging
 
 
@@ -29,7 +29,7 @@ async def main() -> None:
         "--stage",
         type=str,
         required=True,
-        choices=["stage_0", "stage_strip", "stage_matching"],
+        choices=["stage_0", "stage_strip", "stage_matching", "stage_profiles"],
         help="The pipeline stage to execute.",
     )
     args = parser.parse_args()
@@ -43,6 +43,8 @@ async def main() -> None:
         stage_strip.run_stage_strip()
     elif args.stage == "stage_matching":
         await stage_matching.run_stage_matching()
+    elif args.stage == "stage_profiles":
+        stage_profiles.run_stage_profiles()
     else:
         logger.error(f"Unknown stage: {args.stage}")
 
