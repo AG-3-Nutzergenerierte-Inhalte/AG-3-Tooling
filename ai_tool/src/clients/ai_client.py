@@ -242,6 +242,7 @@ class AiClient:
         try:
             result = await self.generate_json_response(prompt, json_schema, gcs_uris, request_context_log, model_override)
             # Validation is done against the original JSON schema, not the OpenAPI converted one
+            # logger.debug(f"result: {result}")
             validate(instance=result, schema=json_schema)
             return result
         except ValidationError as e:
