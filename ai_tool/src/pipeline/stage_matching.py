@@ -8,8 +8,7 @@ IT-Grundschutz Edition 2023 "Anforderungen" and G++ "Controls" using an AI model
 import logging
 import os
 import asyncio
-import re
-from typing import Dict, Any, List, Set
+from typing import Dict, Any, List, Optional, Tuple
 
 from config import app_config
 from constants import *
@@ -54,15 +53,10 @@ def _filter_markdown(
         return ""
 
     # Efficiently find all relevant rows in a single pass
-    # This pattern ensures we match the full line for each control ID.
-    # It looks for lines starting with '|', followed by spaces, the control ID, and then more characters.
     rows = []
     control_id_set = set(control_ids)
-    for line in lines[2]:
-        # Check if the line starts with one of the control IDs, formatted as a markdown table row.
-        # Example: | GPP.10.1 | ...
+    for line in lines[2:]:
         line_trimmed = line.strip()
-        logger.warning(f"parts[1]: {line}")
         if line_trimmed.startswith('|'):
             parts = [p.strip() for p in line_trimmed.split('|')]
             if len(parts) > 2 and parts[1] in control_id_set:
@@ -74,30 +68,89 @@ def _filter_markdown(
 
     return "\n".join([header, separator] + rows)
 
+
+async def _process_mapping(
+    baustein_id: str,
+    zielobjekt_uuid: str,
+    ai_client: AiClient,
+    zielobjekt_controls_map: Dict[str, List[str]],
+    gpp_stripped_isms_md: str,
+    gpp_stripped_md: str,
+    bsi_stripped_md: str,
+    prompt_config: Dict[str, Any],
+    matching_schema: Dict[str, Any],
+    zielobjekte_hierarchy: Dict[str, Any],
+    baustein_anforderungen_map: Dict[str, List[str]],
+    semaphore: asyncio.Semaphore,
+) -> Optional[Tuple[str, Dict[str, Any]]]:
+    """
+    Processes a single mapping between a Baustein and a Zielobjekt.
+    """
+    logger.debug(f"Processing mapping for Baustein '{baustein_id}' and Zielobjekt '{zielobjekt_uuid}'...")
+
+    gpp_control_ids = zielobjekt_controls_map.get(zielobjekt_uuid, [])
+    if not gpp_control_ids:
+        logger.warning(f"No G++ controls found for Zielobjekt {zielobjekt_uuid}. Skipping.")
+        return None
+
+    gpp_source_md = gpp_stripped_isms_md if baustein_id.startswith("ISMS") else gpp_stripped_md
+
+    anforderung_ids = baustein_anforderungen_map.get(baustein_id, [])
+    if not anforderung_ids:
+        logger.warning(f"No Anforderungen found for Baustein {baustein_id}. Skipping.")
+        return None
+
+    filtered_gpp_md = _filter_markdown(gpp_control_ids, gpp_source_md)
+    filtered_bsi_md = _filter_markdown(anforderung_ids, bsi_stripped_md)
+
+    if not filtered_gpp_md or not filtered_bsi_md:
+        logger.error(f"Could not create filtered markdown for Baustein {baustein_id}. Skipping.")
+        return None
+
+    prompt_template = prompt_config["anforderung_to_kontrolle_1_1_prompt"]
+    full_prompt = (
+        f"{prompt_template}\n\n"
+        f"Ed2023 Source:\n{filtered_bsi_md}\n\n"
+        f"G++ Source:\n{filtered_gpp_md}"
+    )
+
+    async with semaphore:
+        ai_response = await ai_client.generate_validated_json_response(
+            prompt=full_prompt,
+            json_schema=matching_schema,
+            request_context_log=f"AnforderungToKontrolle-{baustein_id}",
+            model_override=GROUND_TRUTH_MODEL_PRO
+        )
+
+    if not ai_response:
+        logger.error(f"AI response was empty for Baustein {baustein_id}. Skipping.")
+        return None
+
+    zielobjekt_name = zielobjekte_hierarchy.get(zielobjekt_uuid, {}).get("Zielobjekt", "Unknown")
+    result = {
+        "zielobjekt_name": zielobjekt_name,
+        "baustein_id": baustein_id,
+        "mapping": ai_response.get("mapping", {}),
+        "unmapped_gpp": ai_response.get("unmapped_gpp", []),
+        "unmapped_ed2023": ai_response.get("unmapped_ed2023", []),
+    }
+    return zielobjekt_uuid, result
+
+
 async def run_stage_matching() -> None:
     """
     Executes the main steps for the matching stage.
     """
     logger.debug("Starting Stage 'Matching': 1:1 Mapping...")
 
-    # --- Idempotency Check ---
-    if (
-        os.path.exists(CONTROLS_ANFORDERUNGEN_JSON_PATH)
-        and not app_config.overwrite_temp_files
-    ):
-        logger.info(
-            "Output file already exists and OVERWRITE_TEMP_FILES is false. "
-            "Skipping Matching Stage."
-        )
+    if os.path.exists(CONTROLS_ANFORDERUNGEN_JSON_PATH) and not app_config.overwrite_temp_files:
+        logger.info("Output file already exists and OVERWRITE_TEMP_FILES is false. Skipping Matching Stage.")
         return
 
-    # --- Initialize AI Client ---
     ai_client = AiClient(app_config)
     prompt_config = data_loader.load_json_file(PROMPT_CONFIG_PATH)
     matching_schema = data_loader.load_json_file(MATCHING_SCHEMA_PATH)
 
-
-    # --- Load Data ---
     bausteine_zielobjekte_map = data_loader.load_json_file(
         BAUSTEINE_ZIELOBJEKTE_JSON_PATH
     ).get("bausteine_zielobjekte_map", {})
@@ -106,14 +159,15 @@ async def run_stage_matching() -> None:
     ).get("zielobjekt_controls_map", {})
     zielobjekte_data = data_loader.load_zielobjekte_csv(ZIELOBJEKTE_CSV_PATH)
     zielobjekte_hierarchy = data_parser.parse_zielobjekte_hierarchy(zielobjekte_data)
-
+    bsi_data = data_loader.load_json_file(BSI_2023_JSON_PATH)
+    baustein_anforderungen_map = data_parser.get_anforderungen_for_bausteine(bsi_data)
 
     gpp_stripped_md = data_loader.load_text_file(GPP_STRIPPED_MD_PATH)
     gpp_stripped_isms_md = data_loader.load_text_file(GPP_STRIPPED_ISMS_MD_PATH)
     bsi_stripped_md = data_loader.load_text_file(BSI_STRIPPED_MD_PATH)
 
-    # --- Main Processing Logic ---
     final_output: Dict[str, Any] = {}
+    semaphore = asyncio.Semaphore(app_config.max_concurrent_ai_requests)
 
     pairs_to_process = (
         list(bausteine_zielobjekte_map.items())[:3]
@@ -121,66 +175,30 @@ async def run_stage_matching() -> None:
         else bausteine_zielobjekte_map.items()
     )
 
-    for baustein_id, zielobjekt_uuid in pairs_to_process:
-        logger.debug(f"Processing mapping for Baustein '{baustein_id}' and Zielobjekt '{zielobjekt_uuid}'...")
-
-        gpp_control_ids = zielobjekt_controls_map.get(zielobjekt_uuid, [])
-        if not gpp_control_ids:
-            logger.warning(f"No G++ controls found for Zielobjekt {zielobjekt_uuid}. Skipping.")
-            continue
-
-        # Select correct GPP markdown source
-        gpp_source_md = (
-            gpp_stripped_isms_md
-            if baustein_id.startswith("ISMS")
-            else gpp_stripped_md
+    tasks = [
+        _process_mapping(
+            baustein_id,
+            zielobjekt_uuid,
+            ai_client,
+            zielobjekt_controls_map,
+            gpp_stripped_isms_md,
+            gpp_stripped_md,
+            bsi_stripped_md,
+            prompt_config,
+            matching_schema,
+            zielobjekte_hierarchy,
+            baustein_anforderungen_map,
+            semaphore,
         )
+        for baustein_id, zielobjekt_uuid in pairs_to_process
+    ]
 
-        # Filter markdown files
-        filtered_gpp_md = _filter_markdown(gpp_control_ids, gpp_source_md)
-        filtered_bsi_md = _filter_markdown(baustein_id, bsi_stripped_md)
+    results = await asyncio.gather(*tasks)
 
-        if not filtered_gpp_md or not filtered_bsi_md:
-            logger.error(f"Could not create filtered markdown for Baustein {baustein_id}. Skipping.")
-            continue
+    for result in results:
+        if result:
+            zielobjekt_uuid, data = result
+            final_output[zielobjekt_uuid] = data
 
-        # --- Call AI Model ---
-        prompt_template = prompt_config["anforderung_to_kontrolle_1_1_prompt"]
-
-        # The context (markdown tables) must be part of the main prompt string.
-        full_prompt = (
-            f"{prompt_template}\n\n"
-            f"Ed2023 Source:\n{filtered_bsi_md}\n\n"
-            f"G++ Source:\n{filtered_gpp_md}"
-        )
-
-        # Corrected AI client call with valid arguments.
-        ai_response = await ai_client.generate_validated_json_response(
-            prompt=full_prompt,
-            json_schema=matching_schema,
-            request_context_log=f"AnforderungToKontrolle-{baustein_id}",
-            model_override=GROUND_TRUTH_MODEL_PRO # Use the more powerful model for this complex task
-        )
-
-
-        # --- Validate Response ---
-        if not ai_response:
-            logger.error(f"AI response was empty for Baustein {baustein_id}. Skipping.")
-            continue
-
-        validated_response = ai_response
-
-        # --- Aggregate Results ---
-        zielobjekt_name = zielobjekte_hierarchy.get(zielobjekt_uuid, {}).get("Zielobjekt", "Unknown")
-        final_output[zielobjekt_uuid] = {
-            "zielobjekt_name": zielobjekt_name,
-            "baustein_id": baustein_id,
-            "mapping": validated_response.get("mapping", {}),
-            "unmapped_gpp": validated_response.get("unmapped_gpp", []),
-            "unmapped_ed2023": validated_response.get("unmapped_ed2023", []),
-        }
-
-    # --- Save Output ---
     data_loader.save_json_file(final_output, CONTROLS_ANFORDERUNGEN_JSON_PATH)
-
     logger.info("Stage 'Matching' completed successfully.")

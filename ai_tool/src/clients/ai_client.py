@@ -50,8 +50,6 @@ class AiClient:
         # Cache for alternative model instances
         self._model_cache = {GROUND_TRUTH_MODEL: self.generative_model}
         
-        self.semaphore = asyncio.Semaphore(config.max_concurrent_ai_requests)
-
         logger.debug(f"Vertex AI Client instantiated for project '{config.gcp_project_id}' in region '{config.region}'.")
         logger.debug(f"System Message Context includes today's date: {current_date}")
 
@@ -185,45 +183,44 @@ class AiClient:
                 logger.debug(f"Attaching {len(gcs_uris)} GCS files to the prompt.")
 
         # --- Execution phase (retries on specific errors) ---
-        async with self.semaphore:
-            for attempt in range(retries):
-                try:
-                    logger.debug(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
-                    response = await generative_model.generate_content_async(
-                        contents=contents,
-                        generation_config=gen_config,
-                    )
+        for attempt in range(retries):
+            try:
+                logger.debug(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
+                response = await generative_model.generate_content_async(
+                    contents=contents,
+                    generation_config=gen_config,
+                )
 
-                    # logger.debug(f"[{request_context_log}] Raw model response: {response.text}")
+                # logger.debug(f"[{request_context_log}] Raw model response: {response.text}")
 
-                    response_json = self._process_response(response)
-                    
-                    logger.debug(f"[{request_context_log}] Successfully generated and parsed JSON response on attempt {attempt + 1}.")
-                    return response_json
+                response_json = self._process_response(response)
 
-                # Catch only exceptions we specifically want to retry on (Rule 5.3.3).
-                # We retry on transient API errors and ValueErrors/TypeErrors (which we raise for bad responses/JSON/finish reasons).
-                except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError) as e:
-                    wait_time = (2 ** attempt) + (random.uniform(0, API_RETRY_JITTER) * (2 ** attempt))
-                    if attempt == retries - 1:
-                        logger.critical(f"[{request_context_log}] AI generation failed after all {retries} retries.", exc_info=True)
-                        raise
+                logger.debug(f"[{request_context_log}] Successfully generated and parsed JSON response on attempt {attempt + 1}.")
+                return response_json
 
-                    if isinstance(e, api_core_exceptions.GoogleAPICallError):
-                        logger.warning(f"[{request_context_log}] Generation attempt {attempt + 1} failed with Google API Error (Code: {e.code}): {e.message}. Retrying in {wait_time}s...")
-                    else: # ValueError or TypeError (processing errors)
-                        error_msg = str(e)
-                        if "Failed to parse model response as JSON" in error_msg:
-                            logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed: JSON parsing error. Retrying in {wait_time}s...")
-                        else:
-                            logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed with processing error: {error_msg}. Retrying in {wait_time}s...")
-
-                    await asyncio.sleep(wait_time)
-                
-                # Catch any other unexpected errors (like SDK bugs or programming errors) that should not be retried.
-                except Exception as e:
-                    logger.error(f"[{request_context_log}] Unexpected, non-retryable error during AI generation on attempt {attempt + 1}: {type(e).__name__}: {e}", exc_info=True)
+            # Catch only exceptions we specifically want to retry on (Rule 5.3.3).
+            # We retry on transient API errors and ValueErrors/TypeErrors (which we raise for bad responses/JSON/finish reasons).
+            except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError) as e:
+                wait_time = (2 ** attempt) + (random.uniform(0, API_RETRY_JITTER) * (2 ** attempt))
+                if attempt == retries - 1:
+                    logger.critical(f"[{request_context_log}] AI generation failed after all {retries} retries.", exc_info=True)
                     raise
+
+                if isinstance(e, api_core_exceptions.GoogleAPICallError):
+                    logger.warning(f"[{request_context_log}] Generation attempt {attempt + 1} failed with Google API Error (Code: {e.code}): {e.message}. Retrying in {wait_time}s...")
+                else: # ValueError or TypeError (processing errors)
+                    error_msg = str(e)
+                    if "Failed to parse model response as JSON" in error_msg:
+                        logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed: JSON parsing error. Retrying in {wait_time}s...")
+                    else:
+                        logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed with processing error: {error_msg}. Retrying in {wait_time}s...")
+
+                await asyncio.sleep(wait_time)
+
+            # Catch any other unexpected errors (like SDK bugs or programming errors) that should not be retried.
+            except Exception as e:
+                logger.error(f"[{request_context_log}] Unexpected, non-retryable error during AI generation on attempt {attempt + 1}: {type(e).__name__}: {e}", exc_info=True)
+                raise
 
     async def generate_validated_json_response(
         self, 

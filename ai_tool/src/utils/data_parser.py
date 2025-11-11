@@ -10,6 +10,25 @@ from typing import Any, Dict, List, Tuple
 
 from constants import ALLOWED_MAIN_GROUPS
 
+
+def get_anforderungen_for_bausteine(bsi_data: Dict[str, Any]) -> Dict[str, List[str]]:
+    """
+    Parses the BSI 2023 JSON data to create a map from Baustein ID to a list of its Anforderung IDs.
+    """
+    baustein_anforderungen_map = {}
+    catalog = bsi_data.get("catalog", {})
+    for group in catalog.get("groups", []):
+        if group.get("id") in ALLOWED_MAIN_GROUPS:
+            for sub_group in group.get("groups", []):
+                baustein_id = sub_group.get("id")
+                if baustein_id:
+                    anforderung_ids = []
+                    if "controls" in sub_group:
+                        for control in sub_group["controls"]:
+                            anforderung_ids.append(control["id"])
+                    baustein_anforderungen_map[baustein_id] = anforderung_ids
+    return baustein_anforderungen_map
+
 logger = logging.getLogger(__name__)
 
 def _ensure_string_title(title_value: Any) -> str:
