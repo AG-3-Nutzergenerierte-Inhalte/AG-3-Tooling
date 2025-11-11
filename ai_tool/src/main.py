@@ -50,5 +50,5 @@ async def main() -> None:
     logger.debug("OSCAL generation pipeline finished successfully.")
 
 
-if __name__ in "__main__":
+if __name__ == "__main__":
     asyncio.run(main())
