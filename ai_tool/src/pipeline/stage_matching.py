@@ -19,83 +19,60 @@ from utils import data_loader, data_parser
 logger = logging.getLogger(__name__)
 
 
-def _filter_gpp_markdown(
+def _filter_markdown(
     control_ids: List[str], markdown_content: str
 ) -> str:
     """
-    Filters the G++ markdown content to include only the specified control IDs.
+    Filters a markdown table to include only rows with specified IDs.
+
+    This function is more robust than a regex search as it processes the table
+    line by line.
+
+    Args:
+        markdown_content: The full markdown table as a string.
+        ids_to_keep: A set of IDs (e.g., "GPP.1.1", "SYS.1.1.A1") to retain.
+
+    Returns:
+        A string of the filtered markdown table, or an empty string if filtering fails.
     """
+
     if not control_ids:
         return ""
 
-    header_pattern = re.compile(r"^\| GPP-ID\s*\|.*$", re.MULTILINE)
-    header_match = header_pattern.search(markdown_content)
-    if not header_match:
-        logger.warning("GPP markdown header not found.")
+    lines = markdown_content.strip().splitlines()
+
+    if len(lines) < 2:
+        logger.warning("Markdown content is too short to contain a header and separator.")
         return ""
 
-    header = header_match.group(0)
-    separator_match = re.search(r"^\| :--- \|.*$", markdown_content, re.MULTILINE)
-    if not separator_match:
-        logger.warning("GPP markdown table separator not found.")
+    header = lines[0]
+    separator = lines[1]
+    
+    # Validate that the separator line looks correct
+    if not separator.strip().startswith('|'):
+        logger.warning("Markdown separator line is malformed.")
         return ""
-    separator = separator_match.group(0)
-
 
     # Efficiently find all relevant rows in a single pass
     # This pattern ensures we match the full line for each control ID.
     # It looks for lines starting with '|', followed by spaces, the control ID, and then more characters.
     rows = []
     control_id_set = set(control_ids)
-    for line in markdown_content.splitlines():
+    for line in lines[2]:
         # Check if the line starts with one of the control IDs, formatted as a markdown table row.
         # Example: | GPP.10.1 | ...
         line_trimmed = line.strip()
+        logger.warning(f"parts[1]: {line}")
         if line_trimmed.startswith('|'):
             parts = [p.strip() for p in line_trimmed.split('|')]
             if len(parts) > 2 and parts[1] in control_id_set:
                 rows.append(line)
 
     if not rows:
-        logger.warning(f"No rows found for GPP control IDs: {control_ids}")
+        logger.warning(f"No rows found for control IDs: {control_ids}")
         return ""
 
     return "\n".join([header, separator] + rows)
-
-
-def _filter_bsi_markdown(baustein_id: str, markdown_content: str) -> str:
-    """
-    Filters the BSI markdown content to include only the specified Baustein ID.
-    """
-    header_pattern = re.compile(r"^\| Anforderung-ID\s*\|.*$", re.MULTILINE)
-    header_match = header_pattern.search(markdown_content)
-    if not header_match:
-        logger.warning("BSI markdown header not found.")
-        return ""
-
-    header = header_match.group(0)
-    separator_match = re.search(r"^\| :--- \|.*$", markdown_content, re.MULTILINE)
-    if not separator_match:
-        logger.warning("BSI markdown table separator not found.")
-        return ""
-    separator = separator_match.group(0)
-
-    # Filter rows based on the Baustein ID in the first column.
-    rows = []
-    for line in markdown_content.splitlines():
-        line_trimmed = line.strip()
-        if line_trimmed.startswith('|'):
-            parts = [p.strip() for p in line_trimmed.split('|')]
-            # Check if the row has enough columns and the ID column starts with the baustein_id
-            if len(parts) > 2 and parts[1].startswith(f"{baustein_id}."):
-                rows.append(line)
-
-    if not rows:
-        logger.warning(f"No rows found for BSI Baustein ID: {baustein_id}")
-        return ""
-
-    return "\n".join([header, separator] + rows)
-
 
 async def run_stage_matching() -> None:
     """
@@ -160,8 +137,8 @@ async def run_stage_matching() -> None:
         )
 
         # Filter markdown files
-        filtered_gpp_md = _filter_gpp_markdown(gpp_control_ids, gpp_source_md)
-        filtered_bsi_md = _filter_bsi_markdown(baustein_id, bsi_stripped_md)
+        filtered_gpp_md = _filter_markdown(gpp_control_ids, gpp_source_md)
+        filtered_bsi_md = _filter_markdown(baustein_id, bsi_stripped_md)
 
         if not filtered_gpp_md or not filtered_bsi_md:
             logger.error(f"Could not create filtered markdown for Baustein {baustein_id}. Skipping.")

@@ -10,7 +10,7 @@ import logging
 import asyncio
 import argparse
 
-from pipeline import stage_0, stage_strip, stage_matching
+from pipeline import stage_0, stage_strip, stage_matching, processing
 from utils.logger import setup_logging
 
 
@@ -28,23 +28,24 @@ async def main() -> None:
     parser.add_argument(
         "--stage",
         type=str,
-        required=True,
+        required=False,
         choices=["stage_0", "stage_strip", "stage_matching"],
-        help="The pipeline stage to execute.",
+        help="The pipeline stage to execute. If not provided, the full pipeline will run.",
     )
     args = parser.parse_args()
 
 
-    logger.debug(f"Starting OSCAL generation pipeline for stage: {args.stage}...")
-
-    if args.stage == "stage_0":
-        await stage_0.run_phase_0()
-    elif args.stage == "stage_strip":
-        stage_strip.run_stage_strip()
-    elif args.stage == "stage_matching":
-        await stage_matching.run_stage_matching()
+    if args.stage:
+        logger.info(f"Starting OSCAL generation pipeline for stage: {args.stage}...")
+        if args.stage == "stage_0":
+            await stage_0.run_phase_0()
+        elif args.stage == "stage_strip":
+            stage_strip.run_stage_strip()
+        elif args.stage == "stage_matching":
+            await stage_matching.run_stage_matching()
     else:
-        logger.error(f"Unknown stage: {args.stage}")
+        logger.info("No stage specified. Starting full pipeline execution...")
+        await processing.run_full_pipeline()
 
 
     logger.debug("OSCAL generation pipeline finished successfully.")

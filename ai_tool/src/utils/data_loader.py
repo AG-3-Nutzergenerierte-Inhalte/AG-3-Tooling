@@ -69,6 +69,31 @@ def load_json_file(file_path: str) -> Dict[str, Any]:
         raise
 
 
+@lru_cache(maxsize=None)
+def load_text_file(file_path: str) -> str:
+    """
+    Loads a plain text file (e.g., .md) into a single string.
+
+    Args:
+        file_path: The path to the text file.
+
+    Returns:
+        A string containing the full content of the file.
+    """
+    logger.debug(f"Loading text data from {file_path}...")
+    try:
+        with open(file_path, mode="r", encoding="utf-8") as f:
+            content = f.read()
+            logger.debug("Successfully loaded text data.")
+            return content
+    except FileNotFoundError:
+        logger.error(f"Error: The file at {file_path} was not found.")
+        raise
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while reading the text file: {e}")
+        raise
+
+
 import os
 
 def save_json_file(data: Dict[str, Any], file_path: str) -> None:

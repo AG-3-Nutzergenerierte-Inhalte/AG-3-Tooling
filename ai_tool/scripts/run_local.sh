@@ -10,33 +10,26 @@
 # verbose logging.
 #
 # Usage:
-# ./scripts/run_local.sh <stage_name>
+# ./scripts/run_local.sh [stage_name]
 #
 # Example:
+# ./scripts/run_local.sh             # Runs the full pipeline
 # ./scripts/run_local.sh stage_0
 # ./scripts/run_local.sh stage_strip
 #
+
+# Change to the application's root directory (the parent of the scripts directory)
+# This makes the script runnable from any location.
+# BASH_SOURCE[0] is the path to the script itself.
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+cd "$SCRIPT_DIR/.."
 
 # --- Configuration ---
 # Set the script to exit immediately if any command fails.
 set -e
 
-# Check if a stage name was provided.
-if [ -z "$1" ]; then
-    echo "Error: No stage name provided."
-    echo "Usage: $0 <stage_name>"
-    echo "Available stages: stage_0, stage_strip, stage_matching"
-    exit 1
-fi
-
-STAGE_NAME=$1
-
-# Change to the application's root directory (the parent of the scripts directory)
-# This makes the script runnable from any location.
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-cd "$SCRIPT_DIR/.."
-
-echo "--- Starting Local Pipeline Execution for Stage: $STAGE_NAME ---"
+STAGE_INFO=${1:-"full pipeline"}
+echo "--- Starting Local Pipeline Execution for: $STAGE_INFO ---"
 echo "Working Directory: $(pwd)"
 
 # --- Environment Setup ---
@@ -60,6 +53,7 @@ echo "---------------------------------------"
 
 # --- Execution ---
 # Run the main Python application from the application root.
-python3 src/main.py --stage "$STAGE_NAME"
+# "$@" passes all command-line arguments from this script to the python script.
+python3 src/main.py "$@"
 
 echo "--- Local Pipeline Execution Finished ---"
