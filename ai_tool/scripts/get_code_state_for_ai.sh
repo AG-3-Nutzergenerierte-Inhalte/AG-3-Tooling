@@ -19,7 +19,7 @@
 #
 # The output will be a file named 'project_context.txt'.
 
-OUTPUT_FILE="~/project_context.txt"
+OUTPUT_FILE="project_context.txt"
 FILTER_MSG="🔍 Finding all tracked text files"
 FILE_PATTERN=""
 

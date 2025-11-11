@@ -204,7 +204,7 @@ class AiClient:
                 # Catch only exceptions we specifically want to retry on (Rule 5.3.3).
                 # We retry on transient API errors and ValueErrors/TypeErrors (which we raise for bad responses/JSON/finish reasons).
                 except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError) as e:
-                    wait_time = 2 ** attempt
+                    wait_time = (2 ** attempt) + (random.uniform(0, API_RETRY_JITTER) * (2 ** attempt))
                     if attempt == retries - 1:
                         logger.critical(f"[{request_context_log}] AI generation failed after all {retries} retries.", exc_info=True)
                         raise

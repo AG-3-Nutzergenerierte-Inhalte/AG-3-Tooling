@@ -120,4 +120,4 @@ async def run_phase_0() -> None:
         zielobjekt_controls_output_final, ZIELOBJEKT_CONTROLS_JSON_PATH
     )
 
-    logger.debug("Phase 0 completed successfully.")
+    logger.info("Phase 0 completed successfully.")

@@ -48,7 +48,7 @@ async def match_baustein_to_zielobjekt(
         request_context_log=f"BausteinToZielobjekt-{baustein.get('id', 'unknown')}",
     )
 
-    matched_uuid = response_json.get("matched_uuid")
+    matched_uuid = response_json.get("matched_zielobjekt_uuid")
 
     if matched_uuid and matched_uuid in zielobjekte_map:
         logger.info(f"Successfully matched Baustein '{baustein['id']}' to Zielobjekt '{matched_uuid}'.")

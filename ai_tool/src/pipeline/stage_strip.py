@@ -184,4 +184,4 @@ def run_stage_strip():
     _strip_gpp_file()
     _strip_bsi_file()
 
-    logger.debug("stage_strip finished.")
+    logger.info("stage_strip finished.")

@@ -35,19 +35,25 @@ def _filter_gpp_markdown(
         return ""
 
     header = header_match.group(0)
-    separator = re.search(r"^\| :--- \|.*$", markdown_content, re.MULTILINE).group(0)
+    separator_match = re.search(r"^\| :--- \|.*$", markdown_content, re.MULTILINE)
+    if not separator_match:
+        logger.warning("GPP markdown table separator not found.")
+        return ""
+    separator = separator_match.group(0)
+
 
     # Efficiently find all relevant rows in a single pass
     # This pattern ensures we match the full line for each control ID.
     # It looks for lines starting with '|', followed by spaces, the control ID, and then more characters.
     rows = []
+    control_id_set = set(control_ids)
     for line in markdown_content.splitlines():
         # Check if the line starts with one of the control IDs, formatted as a markdown table row.
         # Example: | GPP.10.1 | ...
         line_trimmed = line.strip()
         if line_trimmed.startswith('|'):
             parts = [p.strip() for p in line_trimmed.split('|')]
-            if len(parts) > 2 and parts[1] in control_ids:
+            if len(parts) > 2 and parts[1] in control_id_set:
                 rows.append(line)
 
     if not rows:
@@ -68,7 +74,11 @@ def _filter_bsi_markdown(baustein_id: str, markdown_content: str) -> str:
         return ""
 
     header = header_match.group(0)
-    separator = re.search(r"^\| :--- \|.*$", markdown_content, re.MULTILINE).group(0)
+    separator_match = re.search(r"^\| :--- \|.*$", markdown_content, re.MULTILINE)
+    if not separator_match:
+        logger.warning("BSI markdown table separator not found.")
+        return ""
+    separator = separator_match.group(0)
 
     # Filter rows based on the Baustein ID in the first column.
     rows = []
@@ -160,14 +170,19 @@ async def run_stage_matching() -> None:
         # --- Call AI Model ---
         prompt_template = prompt_config["anforderung_to_kontrolle_1_1_prompt"]
 
-        # We are not using JSON input for this prompt, but passing the markdown tables directly in the context
-        context = f"Ed2023 Source:\n{filtered_bsi_md}\n\nG++ Source:\n{filtered_gpp_md}"
+        # The context (markdown tables) must be part of the main prompt string.
+        full_prompt = (
+            f"{prompt_template}\n\n"
+            f"Ed2023 Source:\n{filtered_bsi_md}\n\n"
+            f"G++ Source:\n{filtered_gpp_md}"
+        )
 
-        ai_response = await ai_client.generate_json_response(
-            prompt_template=prompt_template,
-            json_input=None, # Not used for this prompt
-            context=context,
-            schema=matching_schema,
+        # Corrected AI client call with valid arguments.
+        ai_response = await ai_client.generate_validated_json_response(
+            prompt=full_prompt,
+            json_schema=matching_schema,
+            request_context_log=f"AnforderungToKontrolle-{baustein_id}",
+            model_override=GROUND_TRUTH_MODEL_PRO # Use the more powerful model for this complex task
         )
 
 
@@ -179,7 +194,7 @@ async def run_stage_matching() -> None:
         validated_response = ai_response
 
         # --- Aggregate Results ---
-        zielobjekt_name = zielobjekte_hierarchy.get(zielobjekt_uuid, {}).get("name", "Unknown")
+        zielobjekt_name = zielobjekte_hierarchy.get(zielobjekt_uuid, {}).get("Zielobjekt", "Unknown")
         final_output[zielobjekt_uuid] = {
             "zielobjekt_name": zielobjekt_name,
             "baustein_id": baustein_id,
@@ -191,4 +206,4 @@ async def run_stage_matching() -> None:
     # --- Save Output ---
     data_loader.save_json_file(final_output, CONTROLS_ANFORDERUNGEN_JSON_PATH)
 
-    logger.debug("Stage 'Matching' completed successfully.")
+    logger.info("Stage 'Matching' completed successfully.")
