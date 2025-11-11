@@ -50,8 +50,8 @@ class AiClient:
         # Cache for alternative model instances
         self._model_cache = {GROUND_TRUTH_MODEL: self.generative_model}
         
-        logger.debug(f"Vertex AI Client instantiated for project '{config.gcp_project_id}' in region '{config.region}'.")
-        logger.debug(f"System Message Context includes today's date: {current_date}")
+        logger.info(f"Vertex AI Client instantiated for project '{config.gcp_project_id}' in region '{config.region}'.")
+        logger.info(f"System Message Context includes today's date: {current_date}")
 
     def _get_model_instance(self, model_name: str) -> GenerativeModel:
         """
@@ -64,7 +64,7 @@ class AiClient:
             GenerativeModel instance for the specified model
         """
         if model_name not in self._model_cache:
-            logger.debug(f"Creating new model instance for '{model_name}'")
+            logger.info(f"Creating new model instance for '{model_name}'")
             self._model_cache[model_name] = GenerativeModel(
                 model_name, system_instruction=self.system_message
             )
@@ -185,7 +185,7 @@ class AiClient:
         # --- Execution phase (retries on specific errors) ---
         for attempt in range(retries):
             try:
-                logger.debug(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
+                logger.info(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
                 response = await generative_model.generate_content_async(
                     contents=contents,
                     generation_config=gen_config,
@@ -195,13 +195,13 @@ class AiClient:
 
                 response_json = self._process_response(response)
 
-                logger.debug(f"[{request_context_log}] Successfully generated and parsed JSON response on attempt {attempt + 1}.")
+                logger.info(f"[{request_context_log}] Successfully generated and parsed JSON response on attempt {attempt + 1}.")
                 return response_json
 
             # Catch only exceptions we specifically want to retry on (Rule 5.3.3).
             # We retry on transient API errors and ValueErrors/TypeErrors (which we raise for bad responses/JSON/finish reasons).
             except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError) as e:
-                wait_time = (2 ** attempt) + (random.uniform(0, API_RETRY_JITTER) * (2 ** attempt))
+                wait_time = 2 ** attempt
                 if attempt == retries - 1:
                     logger.critical(f"[{request_context_log}] AI generation failed after all {retries} retries.", exc_info=True)
                     raise
