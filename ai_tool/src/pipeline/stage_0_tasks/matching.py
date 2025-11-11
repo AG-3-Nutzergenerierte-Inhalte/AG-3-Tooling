@@ -19,20 +19,20 @@ async def match_baustein_to_zielobjekt(
 ) -> str | None:
     """
     Matches a BSI Baustein to the best G++ Zielobjekt using an AI model.
-    Matches a BSI Baustein to the best G++ Zielobjekt using an AI model.
 
     Args:
         ai_client: The AI client instance.
         baustein: The Baustein object to match.
         zielobjekte_map: A dictionary of all available Zielobjekte.
         prompt_template: The prompt template to use for the AI call.
+        schema: The JSON schema for validating the AI's response.
 
     Returns:
         The UUID of the best-matching Zielobjekt, or None if no match is found.
-        The UUID of the best-matching Zielobjekt, or None if no match is found.
     """
+    # Use the new, normalized keys ('name', 'description') provided by the updated data_parser.
     choices = {
-        uuid: f"{data.get('title', '')} - {data.get('description', '')}"
+        uuid: f"{data.get('name', '')} - {data.get('description', '')}"
         for uuid, data in zielobjekte_map.items()
     }
 
@@ -41,13 +41,13 @@ async def match_baustein_to_zielobjekt(
         "choices": choices,
     }
 
-    # Use the schema-validated method, as no simple text generation method exists.
     response_json = await ai_client.generate_validated_json_response(
         prompt=prompt_template.format(json_input=json.dumps(json_input, indent=2)),
         json_schema=schema,
         request_context_log=f"BausteinToZielobjekt-{baustein.get('id', 'unknown')}",
     )
 
+    # CRITICAL FIX: Use the correct key 'matched_zielobjekt_uuid' as defined in the schema.
     matched_uuid = response_json.get("matched_zielobjekt_uuid")
 
     if matched_uuid and matched_uuid in zielobjekte_map:

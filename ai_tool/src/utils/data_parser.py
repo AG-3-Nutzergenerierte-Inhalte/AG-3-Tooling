@@ -34,9 +34,22 @@ def parse_zielobjekte_hierarchy(zielobjekte_data: List[Dict[str, str]]) -> Dict[
     Returns:
         A dictionary mapping each Zielobjekt's UUID to its corresponding data row.
     """
-    logger.debug("Parsing Zielobjekte data into a UUID lookup map...")
-    zielobjekte_map = {row["UUID"]: row for row in zielobjekte_data if row.get("UUID")}
-    logger.debug(f"Successfully created a lookup map for {len(zielobjekte_map)} Zielobjekte.")
+    logger.debug("Parsing and normalizing Zielobjekte data into a UUID lookup map...")
+    zielobjekte_map = {}
+    for row in zielobjekte_data:
+        uuid = row.get("UUID")
+        if uuid:
+            # Create a mutable copy of the original row data to preserve it.
+            normalized_row = row.copy()
+            
+            # Add standardized keys for predictable access throughout the application.
+            # This prevents downstream modules from needing to know the exact (and potentially German) CSV headers.
+            normalized_row['name'] = row.get('Zielobjekt', '')
+            normalized_row['description'] = row.get('Beschreibung', '') # Assuming 'Beschreibung' is the description column.
+            
+            zielobjekte_map[uuid] = normalized_row
+
+    logger.debug(f"Successfully created a lookup map for {len(zielobjekte_map)} normalized Zielobjekte.")
     return zielobjekte_map
 
 
