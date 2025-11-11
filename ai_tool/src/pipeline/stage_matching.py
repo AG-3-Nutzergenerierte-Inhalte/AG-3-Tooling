@@ -8,6 +8,7 @@ IT-Grundschutz Edition 2023 "Anforderungen" and G++ "Controls" using an AI model
 import logging
 import os
 import asyncio
+import re
 from typing import Dict, Any, List, Optional, Tuple
 
 from config import app_config
@@ -16,6 +17,29 @@ from clients.ai_client import AiClient
 from utils import data_loader, data_parser
 
 logger = logging.getLogger(__name__)
+
+ANFORDERUNG_ID_PATTERN = re.compile(r"^[A-Z]{3,}\.\d+\.\d+\.A\d+$")
+
+def _validate_mapping_keys(mapping: Dict[str, str]) -> Dict[str, str]:
+    """
+    Validates that the keys in the mapping dictionary match the Anforderung ID format.
+
+    Args:
+        mapping: The mapping dictionary from the AI response.
+
+    Returns:
+        A new dictionary containing only the valid key-value pairs.
+    """
+    if not mapping:
+        return {}
+
+    validated_mapping = {}
+    for key, value in mapping.items():
+        if ANFORDERUNG_ID_PATTERN.match(key):
+            validated_mapping[key] = value
+        else:
+            logger.warning(f"Invalid key '{key}' in AI response mapping. Discarding.")
+    return validated_mapping
 
 
 def _filter_markdown(
@@ -126,11 +150,13 @@ async def _process_mapping(
         logger.error(f"AI response was empty for Baustein {baustein_id}. Skipping.")
         return None
 
+    validated_mapping = _validate_mapping_keys(ai_response.get("mapping", {}))
+
     zielobjekt_name = zielobjekte_hierarchy.get(zielobjekt_uuid, {}).get("Zielobjekt", "Unknown")
     result = {
         "zielobjekt_name": zielobjekt_name,
         "baustein_id": baustein_id,
-        "mapping": ai_response.get("mapping", {}),
+        "mapping": validated_mapping,
         "unmapped_gpp": ai_response.get("unmapped_gpp", []),
         "unmapped_ed2023": ai_response.get("unmapped_ed2023", []),
     }

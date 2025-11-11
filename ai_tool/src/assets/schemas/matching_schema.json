@@ -5,11 +5,9 @@
   "properties": {
     "mapping": {
       "type": "object",
-      "patternProperties": {
-        "^[A-Z]{3,}\\.\\d+\\.\\d+\\.A\\d+$": {
-          "type": "string",
-          "pattern": "^GPP\\.\\d+\\.\\d+$"
-        }
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^GPP\\.\\d+\\.\\d+$"
       }
     },
     "unmapped_gpp": {
