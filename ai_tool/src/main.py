@@ -10,7 +10,7 @@ import logging
 import asyncio
 import argparse
 
-from pipeline import stage_0, stage_strip, stage_matching, processing
+from pipeline import stage_0, stage_strip, stage_matching, processing, stage_profiles
 from utils.logger import setup_logging
 
 
@@ -29,20 +29,22 @@ async def main() -> None:
         "--stage",
         type=str,
         required=False,
-        choices=["stage_0", "stage_strip", "stage_matching"],
+        choices=["stage_0", "stage_strip", "stage_matching", "stage_profiles"],
         help="The pipeline stage to execute. If not provided, the full pipeline will run.",
     )
     args = parser.parse_args()
 
 
-    if args.stage:
-        logger.info(f"Starting OSCAL generation pipeline for stage: {args.stage}...")
-        if args.stage == "stage_0":
-            await stage_0.run_phase_0()
-        elif args.stage == "stage_strip":
-            stage_strip.run_stage_strip()
-        elif args.stage == "stage_matching":
-            await stage_matching.run_stage_matching()
+    logger.info(f"Starting OSCAL generation pipeline for stage: {args.stage}...")
+
+    if args.stage == "stage_0":
+        await stage_0.run_phase_0()
+    elif args.stage == "stage_strip":
+        stage_strip.run_stage_strip()
+    elif args.stage == "stage_matching":
+        await stage_matching.run_stage_matching()
+    elif args.stage == "stage_profiles":
+        stage_profiles.run_stage_profiles()
     else:
         logger.info("No stage specified. Starting full pipeline execution...")
         await processing.run_full_pipeline()
