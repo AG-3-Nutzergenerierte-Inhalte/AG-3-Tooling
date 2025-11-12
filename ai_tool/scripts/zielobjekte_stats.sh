@@ -3,7 +3,7 @@
 # Dieses Skript generiert eine Statistik-Tabelle durch das Kombinieren
 # einer JSON-Datei (UUID -> Array) und einer CSV-Datei (UUID -> Name).
 #
-# Es verwendet 'jq' zur JSON-Verarbeitung und 'awk' zur CSV-Verarbeitung.
+# Es verwendet 'jq' zur JSON-Verarbeitung, 'grep' zur Suche und 'awk' zur Extraktion.
 #
 # Verwendung: ./stats_v2.sh <json_datei> <csv_datei>
 # Beispiel:   ./stats_v2.sh controls_map.json zielobjekte.csv
@@ -30,13 +30,17 @@ if [ ! -f "$CSV_FILE" ]; then
   exit 1
 fi
 
-# 3. Prüfen, ob 'jq' und 'awk' installiert sind
+# 3. Prüfen, ob 'jq', 'awk' und 'grep' installiert sind
 if ! command -v jq &> /dev/null; then
   echo "Fehler: 'jq' ist nicht installiert. (z.B. sudo apt install jq)"
   exit 1
 fi
 if ! command -v awk &> /dev/null; then
-  echo "Fehler: 'awk' ist nicht installiert. (Dies ist sehr ungewöhnlich)"
+  echo "Fehler: 'awk' ist nicht installiert."
+  exit 1
+fi
+if ! command -v grep &> /dev/null; then
+  echo "Fehler: 'grep' ist nicht installiert."
   exit 1
 fi
 
@@ -51,29 +55,22 @@ echo "| --- | --- | --- |" # Markdown Tabellen-Trennlinie
 #    - Gibt beides getrennt durch ein Leerzeichen aus (z.B. "uuid-string 12")
 # 3. while read loop
 #    - Liest jede Zeile von jq in die Variablen $uuid und $count
-# 4. awk-Befehl
-#    - Sucht in der CSV-Datei nach der $uuid
-#    - -F, : Setzt das Trennzeichen auf Komma
-#    - -v id="$uuid": Übergibt die Shell-Variable $uuid an awk
-#    - NR > 1: Überspringt die Kopfzeile (Zeilennummer > 1)
+# 4. [NEUE LOGIK] grep + awk
+#    - 'grep -F -m 1 "$uuid" "$CSV_FILE"': Sucht nach der exakten UUID (-F)
+#      in der CSV-Datei und stoppt nach dem ersten Treffer (-m 1).
+#    - 'awk -F, '{ print $1 }'': Extrahiert das erste Feld (Name) aus der
+#      gefundenen Zeile.
 
 jq -r '.zielobjekt_controls_map | keys_unsorted[] as $uuid | "\($uuid) \(.[$uuid] | length)"' "$JSON_FILE" | while read -r uuid count; do
   
-  # Suche den Namen in der CSV-Datei (ignoriere die Kopfzeile)
-  # [NEU] Entferne explizit führende UND nachfolgende Leerzeichen
-  # sowie \r (Carriage Return) für robusten Vergleich.
-  name=$(awk -F, -v id="$uuid" '
-    NR > 1 {
-      col7 = $7;
-      sub(/^[[:space:]\r]+/, "", col7);  # Entferne Müll am ANFANG
-      sub(/[[:space:]\r]+$/, "", col7);  # Entferne Müll am ENDE
-      if (col7 == id) {
-        print $1
-      }
-    }' "$CSV_FILE")
+  # Suche die Zeile in der CSV-Datei (ignoriere die Kopfzeile)
+  line=$(grep -F -m 1 "$uuid" "$CSV_FILE")
   
-  # Fallback, falls die UUID in der CSV nicht gefunden wurde
-  if [ -z "$name" ]; then
+  if [ -n "$line" ]; then
+    # Wenn grep eine Zeile gefunden hat, extrahiere den Namen (Feld 1)
+    name=$(echo "$line" | awk -F, '{ print $1 }')
+  else
+    # Fallback, falls die UUID in der CSV nicht gefunden wurde
     name="<Nicht gefunden>"
   fi
   
