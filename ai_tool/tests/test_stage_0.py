@@ -39,11 +39,19 @@ class TestStage0(unittest.TestCase):
         mock_config.is_test_mode = False
 
         # --- Mock Data Loading and Parsing ---
-        mock_baustein = {"id": "B.1", "title": "Test Baustein"}
-        mock_data_parser.parse_bsi_2023_controls.return_value = ([mock_baustein], [])
-        mock_data_parser.parse_zielobjekte_hierarchy.return_value = {
-            "Z.1": {"Zielobjekt": "Test Zielobjekt"}
+        mock_baustein = {
+            "id": "B.1",
+            "title": "Test Baustein",
+            "description": "This is a test baustein.",
         }
+        mock_zielobjekte_map = {
+            "Z.1": {
+                "Zielobjekt": "Test Zielobjekt",
+                "Definition": "This is a test zielobjekt.",
+            }
+        }
+        mock_data_parser.parse_bsi_2023_controls.return_value = ([mock_baustein], [])
+        mock_data_parser.parse_zielobjekte_hierarchy.return_value = mock_zielobjekte_map
         mock_data_parser.parse_gpp_kompendium_controls.return_value = ({}, {})
 
         # --- Mock Inheritance and AI Logic ---

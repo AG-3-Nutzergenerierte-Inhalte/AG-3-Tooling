@@ -58,15 +58,14 @@ def parse_zielobjekte_hierarchy(zielobjekte_data: List[Dict[str, str]]) -> Dict[
     for row in zielobjekte_data:
         uuid = row.get("UUID")
         if uuid:
-            # Create a mutable copy of the original row data to preserve it.
-            normalized_row = row.copy()
-            
-            # Add standardized keys for predictable access throughout the application.
-            # This prevents downstream modules from needing to know the exact (and potentially German) CSV headers.
-            normalized_row['name'] = row.get('Zielobjekt', '')
-            normalized_row['description'] = row.get('Beschreibung', '') # Assuming 'Beschreibung' is the description column.
-            
-            zielobjekte_map[uuid] = normalized_row
+            # The CSV headers are positional: UUID, Definition, Zielobjekt, ChildOfUUID
+            # The data loader correctly uses these as keys.
+            zielobjekte_map[uuid] = {
+                "UUID": uuid,
+                "Definition": row.get("Definition", ""),
+                "Zielobjekt": row.get("Zielobjekt", ""),
+                "ChildOfUUID": row.get("ChildOfUUID", ""),
+            }
 
     logger.debug(f"Successfully created a lookup map for {len(zielobjekte_map)} normalized Zielobjekte.")
     return zielobjekte_map
@@ -99,9 +98,17 @@ def parse_bsi_2023_controls(
         for main_group in main_groups:
 
             def _parse_baustein_details(baustein: Dict[str, Any]) -> Dict[str, Any]:
+                # Find the 'usage' description for the Baustein
+                baustein_description = ""
+                for part in baustein.get("parts", []):
+                    if part.get("name") == "usage":
+                        baustein_description = part.get("prose", "")
+                        break
+
                 parsed_baustein = {
                     "id": baustein.get("id"),
                     "title": _ensure_string_title(baustein.get("title")),
+                    "description": baustein_description,
                     "controls": [],
                 }
                 for control in baustein.get("controls", []):
