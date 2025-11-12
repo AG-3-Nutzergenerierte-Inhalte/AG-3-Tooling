@@ -56,15 +56,21 @@ echo "| --- | --- | --- |" # Markdown Tabellen-Trennlinie
 #    - -F, : Setzt das Trennzeichen auf Komma
 #    - -v id="$uuid": Übergibt die Shell-Variable $uuid an awk
 #    - NR > 1: Überspringt die Kopfzeile (Zeilennummer > 1)
-#    - $7 == id: Prüft, ob die 7. Spalte (UUID) mit unserer ID übereinstimmt
-#    - { print $1 }: Wenn ja, drucke die 1. Spalte (Zielobjekt/Name)
 
 jq -r '.zielobjekt_controls_map | keys_unsorted[] as $uuid | "\($uuid) \(.[$uuid] | length)"' "$JSON_FILE" | while read -r uuid count; do
   
   # Suche den Namen in der CSV-Datei (ignoriere die Kopfzeile)
-  # [NEU] Verwende 'sub' statt 'gensub' für bessere Kompatibilität.
-  # 'sub' entfernt Leerzeichen/Wagenrückläufe (z.B. \r) am Ende von Spalte 7.
-  name=$(awk -F, -v id="$uuid" 'NR > 1 { col7 = $7; sub(/[[:space:]]+$/, "", col7); if (col7 == id) print $1 }' "$CSV_FILE")
+  # [NEU] Entferne explizit führende UND nachfolgende Leerzeichen
+  # sowie \r (Carriage Return) für robusten Vergleich.
+  name=$(awk -F, -v id="$uuid" '
+    NR > 1 {
+      col7 = $7;
+      sub(/^[[:space:]\r]+/, "", col7);  # Entferne Müll am ANFANG
+      sub(/[[:space:]\r]+$/, "", col7);  # Entferne Müll am ENDE
+      if (col7 == id) {
+        print $1
+      }
+    }' "$CSV_FILE")
   
   # Fallback, falls die UUID in der CSV nicht gefunden wurde
   if [ -z "$name" ]; then
