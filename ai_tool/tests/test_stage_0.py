@@ -16,18 +16,23 @@ class TestStage0(unittest.TestCase):
     @patch("pipeline.stage_0.AiClient")
     @patch("pipeline.stage_0.data_loader")
     @patch("pipeline.stage_0.data_parser")
-    @patch("pipeline.stage_0.inheritance.get_all_inherited_controls")
+    @patch("pipeline.stage_0.matching.match_baustein_to_zielobjekt", new_callable=AsyncMock)
+    @patch(
+        "pipeline.stage_0.inheritance.generate_full_zielobjekt_controls_map"
+    )
     def test_run_phase_0_generates_correct_outputs(
         self,
-        mock_get_inherited_controls,
+        mock_generate_full_map,
         mock_match_baustein,
         mock_data_parser,
         mock_data_loader,
         mock_ai_client,
+        mock_os_exists,
     ):
         """
-        Test that the refactored Stage 0 pipeline correctly generates its
-        two primary output files without performing control matching.
+        Test that Stage 0 correctly generates its two primary output files:
+        - A deterministic map of all Zielobjekte to their controls.
+        - An AI-driven map of Bausteine to Zielobjekte.
         """
         # --- Mock AppConfig ---
         mock_config = AppConfig()
@@ -35,29 +40,25 @@ class TestStage0(unittest.TestCase):
 
         # --- Mock Data Loading and Parsing ---
         mock_baustein = {"id": "B.1", "title": "Test Baustein"}
-        mock_data_parser.parse_bsi_2023_controls.return_value = ([], [])
-        mock_data_parser.parse_zielobjekte_hierarchy.return_value = {"Z.1": {}}
-        mock_data_parser.parse_gpp_kompendium_controls.return_value = (
-            {"Zielobjekt 1": ["GPP.1", "GPP.2"]},
-            {"GPP.1": "GPP Control 1", "GPP.2": "GPP Control 2"},
-        )
-
-        # --- Mock AI and Inheritance Logic ---
-        mock_match_baustein.return_value = "Z.1"
-        mock_inherited_controls_with_titles = {
-            "GPP.1": "GPP Control 1",
-            "GPP.2": "GPP Control 2",
+        mock_data_parser.parse_bsi_2023_controls.return_value = ([mock_baustein], [])
+        mock_data_parser.parse_zielobjekte_hierarchy.return_value = {
+            "Z.1": {"Zielobjekt": "Test Zielobjekt"}
         }
-        mock_get_inherited_controls.return_value = mock_inherited_controls_with_titles
+        mock_data_parser.parse_gpp_kompendium_controls.return_value = ({}, {})
 
-        # --- Run the pipeline ---
-        # Set up a side_effect function for load_json_file to handle multiple calls
+        # --- Mock Inheritance and AI Logic ---
+        mock_generate_full_map.return_value = {
+            "Z.1": ["GPP.1", "GPP.2"]
+        }
+        mock_match_baustein.return_value = "Z.1"
+
+        # --- Mock Data Loader ---
         def load_json_side_effect(path):
             if path == PROMPT_CONFIG_PATH:
                 return {"baustein_to_zielobjekt_prompt": "test prompt"}
             if path == BAUSTEIN_TO_ZIELOBJEKT_SCHEMA_PATH:
                 return {"$schema": "http://json-schema.org/draft-07/schema#"}
-            return {} # Default empty dict for other calls
+            return {}
         mock_data_loader.load_json_file.side_effect = load_json_side_effect
 
         # --- Run the pipeline ---
@@ -65,6 +66,13 @@ class TestStage0(unittest.TestCase):
             asyncio.run(stage_0.run_phase_0())
 
         # --- Assertions ---
+        # Verify that the deterministic control map was generated and passed to save
+        mock_generate_full_map.assert_called_once()
+
+        # Verify that the AI matching was called for the mock baustein
+        mock_match_baustein.assert_called_once()
+
+        # Verify the final files were saved correctly
         self.assertEqual(mock_data_loader.save_json_file.call_count, 2)
 
         # Verify bausteine_zielobjekte.json

@@ -65,9 +65,15 @@ async def run_phase_0() -> None:
     ) = data_parser.parse_gpp_kompendium_controls(gpp_kompendium_data)
 
     # --- Main Processing Logic ---
-    bausteine_zielobjekte_map: Dict[str, str] = {}
-    zielobjekt_controls_output: Dict[str, List[str]] = {}
+    # Generate the deterministic control map for all Zielobjekte
+    zielobjekt_controls_output = (
+        inheritance.generate_full_zielobjekt_controls_map(
+            zielobjekte_map, zielobjekt_to_gpp_controls_map, gpp_control_titles
+        )
+    )
 
+    # Perform the AI-based matching of Bausteine to Zielobjekte
+    bausteine_zielobjekte_map: Dict[str, str] = {}
     bausteine_to_process = bausteine[:3] if app_config.is_test_mode else bausteine
 
     sem = asyncio.Semaphore(10)
@@ -93,21 +99,15 @@ async def run_phase_0() -> None:
 
     for baustein, matched_zielobjekt_uuid in results:
         if matched_zielobjekt_uuid:
-            bausteine_zielobjekte_map[baustein["id"]] = matched_zielobjekt_uuid
-
-            # This now returns a dict of {control_id: control_title}
-            all_inherited_controls_with_titles = (
-                inheritance.get_all_inherited_controls(
-                    matched_zielobjekt_uuid,
-                    zielobjekte_map,
-                    zielobjekt_to_gpp_controls_map,
-                    gpp_control_titles,
+            # Add a check to ensure the matched UUID is valid
+            if matched_zielobjekt_uuid in zielobjekte_map:
+                bausteine_zielobjekte_map[baustein["id"]] = matched_zielobjekt_uuid
+            else:
+                logger.warning(
+                    f"AI returned a non-existent Zielobjekt UUID: "
+                    f"{matched_zielobjekt_uuid} for Baustein {baustein['id']}. "
+                    "This mapping will be skipped."
                 )
-            )
-
-            zielobjekt_controls_output[matched_zielobjekt_uuid] = sorted(
-                list(all_inherited_controls_with_titles.keys())
-            )
 
     # --- Format and Save Output ---
     bausteine_output = {"bausteine_zielobjekte_map": bausteine_zielobjekte_map}

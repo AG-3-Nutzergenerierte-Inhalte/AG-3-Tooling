@@ -55,3 +55,43 @@ def get_all_inherited_controls(
 
     # Return the final dictionary of control IDs to titles
     return {cid: gpp_control_titles.get(cid, "") for cid in inherited_control_ids}
+
+
+def generate_full_zielobjekt_controls_map(
+    zielobjekte_map: Dict[str, Dict[str, str]],
+    zielobjekt_to_gpp_controls_map: Dict[str, List[str]],
+    gpp_control_titles: Dict[str, str],
+) -> Dict[str, List[str]]:
+    """
+    Generates a complete map of all Zielobjekte to their inherited G++ controls.
+
+    This function iterates through every Zielobjekt and recursively finds all
+    associated controls, creating a deterministic and comprehensive map.
+
+    Args:
+        zielobjekte_map: A dictionary mapping Zielobjekt UUIDs to their data.
+        zielobjekt_to_gpp_controls_map: A dictionary mapping Zielobjekt names
+                                         to a list of G++ control IDs.
+        gpp_control_titles: A dictionary mapping G++ control IDs to their titles.
+
+    Returns:
+        A dictionary where each key is a Zielobjekt UUID and the value is a
+        sorted list of all inherited G++ control IDs.
+    """
+    full_controls_map = {}
+    memo = {}  # Memoization table for the recursive calls
+
+    for zielobjekt_uuid in zielobjekte_map:
+        all_inherited_controls_with_titles = get_all_inherited_controls(
+            zielobjekt_uuid,
+            zielobjekte_map,
+            zielobjekt_to_gpp_controls_map,
+            gpp_control_titles,
+            memo,
+        )
+        # We only need the control IDs (keys) for the final output
+        full_controls_map[zielobjekt_uuid] = sorted(
+            list(all_inherited_controls_with_titles.keys())
+        )
+
+    return full_controls_map
