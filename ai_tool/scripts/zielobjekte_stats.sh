@@ -3,7 +3,8 @@
 # Dieses Skript generiert eine Statistik-Tabelle durch das Kombinieren
 # einer JSON-Datei (UUID -> Array) und einer CSV-Datei (UUID -> Name).
 #
-# Es verwendet 'jq' zur JSON-Verarbeitung, 'grep' zur Suche und 'awk' zur Extraktion.
+# Es verwendet 'jq' zur JSON-Verarbeitung und 'awk' zur CSV-Verarbeitung.
+# Es bereinigt die CSV-Datei von \r-Zeichen, um Fehler zu vermeiden.
 #
 # Verwendung: ./stats_v2.sh <json_datei> <csv_datei>
 # Beispiel:   ./stats_v2.sh controls_map.json zielobjekte.csv
@@ -30,7 +31,7 @@ if [ ! -f "$CSV_FILE" ]; then
   exit 1
 fi
 
-# 3. Prüfen, ob 'jq', 'awk' und 'grep' installiert sind
+# 3. Prüfen, ob 'jq', 'awk', 'tr', 'cat' und 'mktemp' installiert sind
 if ! command -v jq &> /dev/null; then
   echo "Fehler: 'jq' ist nicht installiert. (z.B. sudo apt install jq)"
   exit 1
@@ -39,8 +40,8 @@ if ! command -v awk &> /dev/null; then
   echo "Fehler: 'awk' ist nicht installiert."
   exit 1
 fi
-if ! command -v grep &> /dev/null; then
-  echo "Fehler: 'grep' ist nicht installiert."
+if ! command -v tr &> /dev/null || ! command -v cat &> /dev/null || ! command -v mktemp &> /dev/null; then
+  echo "Fehler: Core-Utils (tr, cat, mktemp) nicht gefunden."
   exit 1
 fi
 
@@ -50,26 +51,34 @@ fi
 echo "| Name | UUID | Anzahl |"
 echo "| --- | --- | --- |" # Markdown Tabellen-Trennlinie
 
-# 2. jq-Befehl zur Verarbeitung der JSON-Datei
-#    - Extrahiert die UUID (key) und die LÄNGE (length) des Arrays
-#    - Gibt beides getrennt durch ein Leerzeichen aus (z.B. "uuid-string 12")
-# 3. while read loop
-#    - Liest jede Zeile von jq in die Variablen $uuid und $count
-# 4. [NEUE LOGIK] grep + awk
-#    - 'grep -F -m 1 "$uuid" "$CSV_FILE"': Sucht nach der exakten UUID (-F)
-#      in der CSV-Datei und stoppt nach dem ersten Treffer (-m 1).
-#    - 'awk -F, '{ print $1 }'': Extrahiert das erste Feld (Name) aus der
-#      gefundenen Zeile.
+# 2. [NEUE LOGIK] CSV-Datei bereinigen
+#    Wir erstellen eine temporäre Kopie der CSV-Datei und entfernen alle
+#    Carriage-Return-Zeichen (\r), die oft den String-Vergleich in 'awk' stören.
+CLEAN_CSV=$(mktemp)
+cat "$CSV_FILE" | tr -d '\r' | sed 's/"[^"]*"//g' > "$CLEAN_CSV"
 
-jq -r '.zielobjekt_controls_map | keys_unsorted[] as $uuid | "\($uuid) \(.[$uuid] | length)"' "$JSON_FILE" | while read -r uuid count; do
+# 3. Prozess-Substitution (wie in v5) kombiniert mit 'awk'-Logik (wie in v3)
+#    Lese von jq
+while read -r uuid count; do
   
-  # Suche die Zeile in der CSV-Datei (ignoriere die Kopfzeile)
-  line=$(grep -F -m 1 "$uuid" "$CSV_FILE")
+  # Suche den Namen mit 'awk' in der BEREINIGTEN CSV-Datei.
+  # Diese Logik prüft jetzt exakt Spalte 7 (robust gegen leere Spalte 6)
+  # und wird nicht mehr durch \r-Zeichen gestört.
+  name=$(awk -F, -v id="$uuid" '
+    NR > 1 {
+      # Spalte 7 holen
+      col7 = $7;
+      
+      # Nur noch verbleibende Leerzeichen am Anfang/Ende entfernen
+      sub(/^[[:space:]]+/, "", col7);
+      sub(/[[:space:]]+$/, "", col7);
+      
+      if (col7 == id) {
+        print $1
+      }
+    }' "$CLEAN_CSV") # Lese von der bereinigten Temp-Datei
   
-  if [ -n "$line" ]; then
-    # Wenn grep eine Zeile gefunden hat, extrahiere den Namen (Feld 1)
-    name=$(echo "$line" | awk -F, '{ print $1 }')
-  else
+  if [ -z "$name" ]; then
     # Fallback, falls die UUID in der CSV nicht gefunden wurde
     name="<Nicht gefunden>"
   fi
@@ -77,4 +86,7 @@ jq -r '.zielobjekt_controls_map | keys_unsorted[] as $uuid | "\($uuid) \(.[$uuid
   # Drucke die finale Tabellenzeile
   echo "| $name | $uuid | $count |"
 
-done
+done < <(jq -r '.zielobjekt_controls_map | keys_unsorted[] as $uuid | "\($uuid) \(.[$uuid] | length)"' "$JSON_FILE")
+
+# 4. Temporäre Datei löschen
+rm "$CLEAN_CSV"
