@@ -48,10 +48,15 @@ async def match_baustein_to_zielobjekt(
         "Based on the information above, which is the best match?"
     )
 
+    # Dynamically create the schema with an enum of the possible Zielobjekt names
+    zielobjekt_names = [data.get("Zielobjekt", "") for data in zielobjekte_map.values()]
+    dynamic_schema = schema.copy()
+    dynamic_schema["properties"]["matched_zielobjekt"]["enum"] = zielobjekt_names
+
     # The AI is now expected to return the NAME of the best match, not the UUID.
     response_json = await ai_client.generate_validated_json_response(
         prompt=prompt,
-        json_schema=schema,
+        json_schema=dynamic_schema,
         request_context_log=f"BausteinToZielobjekt-{baustein.get('id', 'unknown')}",
     )
 
