@@ -149,6 +149,47 @@ def parse_bsi_2023_controls(
     return parsed_bausteine, filtered_out_bausteine
 
 
+def _traverse_and_collect_controls(
+    controls: List[Dict[str, Any]],
+    zielobjekt_to_controls_map: Dict[str, List[str]],
+    gpp_control_titles: Dict[str, str],
+):
+    """
+    Recursively traverses a list of controls to populate the maps, ensuring no
+    duplicate control IDs are added for any Zielobjekt.
+    """
+    for control in controls:
+        control_id = control.get("id")
+        if not control_id:
+            continue
+
+        control_title_value = control.get("title")
+        final_title = _ensure_string_title(control_title_value)
+
+        if final_title:
+            gpp_control_titles[control_id] = final_title
+
+        for part in control.get("parts", []):
+            for prop in part.get("props", []):
+                if prop.get("name") == "target_objects":
+                    zielobjekte = [
+                        zo.strip() for zo in prop.get("value", "").split(",")
+                    ]
+                    for zo_name in zielobjekte:
+                        if zo_name not in zielobjekt_to_controls_map:
+                            zielobjekt_to_controls_map[zo_name] = []
+                        if control_id not in zielobjekt_to_controls_map[zo_name]:
+                            zielobjekt_to_controls_map[zo_name].append(control_id)
+
+        # Recursive step for nested controls
+        if "controls" in control and control["controls"]:
+            _traverse_and_collect_controls(
+                control["controls"],
+                zielobjekt_to_controls_map,
+                gpp_control_titles,
+            )
+
+
 def parse_gpp_kompendium_controls(
     gpp_kompendium_data: Dict[str, Any]
 ) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
@@ -173,24 +214,12 @@ def parse_gpp_kompendium_controls(
         groups = gpp_kompendium_data.get("catalog", {}).get("groups", [])
         for group in groups:
             for sub_group in group.get("groups", []):
-                for control in sub_group.get("controls", []):
-                    control_id = control.get("id")
-                    control_title_value = control.get("title")
-
-                    final_title = _ensure_string_title(control_title_value)
-                    
-                    if control_id and final_title:
-                        gpp_control_titles[control_id] = final_title
-
-                    for part in control.get("parts", []):
-                        for prop in part.get("props", []):
-                            if prop.get("name") == "target_objects":
-                                zielobjekte = [zo.strip() for zo in prop.get("value", "").split(",")]
-                                for zo_name in zielobjekte:
-                                    if zo_name not in zielobjekt_to_controls_map:
-                                        zielobjekt_to_controls_map[zo_name] = []
-                                    if control_id:
-                                        zielobjekt_to_controls_map[zo_name].append(control_id)
+                if sub_group.get("controls"):
+                    _traverse_and_collect_controls(
+                        sub_group["controls"],
+                        zielobjekt_to_controls_map,
+                        gpp_control_titles,
+                    )
     except Exception as e:
         logger.error(f"Failed to parse G++ Kompendium controls due to an error: {e}")
         raise
