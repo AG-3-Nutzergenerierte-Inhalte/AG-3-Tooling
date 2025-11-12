@@ -7,6 +7,7 @@ source for these constants.
 """
 
 import os
+import re
 
 # --- Path Configuration ---
 # All paths are resolved as absolute paths to ensure the application runs
@@ -15,6 +16,7 @@ SRC_ROOT = os.path.dirname(os.path.abspath(__file__))
 # REPO_ROOT is the parent directory of the 'ai_tool' project folder.
 REPO_ROOT = os.path.abspath(os.path.join(SRC_ROOT, "..", ".."))
 
+ANFORDERUNG_ID_PATTERN = re.compile(r"^[A-Z]{2,}(\.\d{1,2}){1,3}(\.A\d{1,2})?$")
 
 # --- Data File Paths ---
 ZIELOBJEKTE_CSV_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Dokumentation/namespaces/zielobjekte.csv")

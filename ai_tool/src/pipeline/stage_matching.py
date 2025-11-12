@@ -8,7 +8,6 @@ IT-Grundschutz Edition 2023 "Anforderungen" and G++ "Controls" using an AI model
 import logging
 import os
 import asyncio
-import re
 from typing import Dict, Any, List, Optional, Tuple
 
 from config import app_config
@@ -18,7 +17,7 @@ from utils import data_loader, data_parser
 
 logger = logging.getLogger(__name__)
 
-ANFORDERUNG_ID_PATTERN = re.compile(r"^[A-Z]{3,}\.\d+\.\d+\.A\d+$")
+
 
 def _validate_mapping_keys(mapping: Dict[str, str]) -> Dict[str, str]:
     """
@@ -110,7 +109,7 @@ async def _process_mapping(
     """
     Processes a single mapping between a Baustein and a Zielobjekt.
     """
-    logger.debug(f"Processing mapping for Baustein '{baustein_id}' and Zielobjekt '{zielobjekt_uuid}'...")
+    logger.info(f"Processing mapping for Baustein '{baustein_id}' and Zielobjekt '{zielobjekt_uuid}'...")
 
     gpp_control_ids = zielobjekt_controls_map.get(zielobjekt_uuid, [])
     if not gpp_control_ids:
@@ -137,6 +136,8 @@ async def _process_mapping(
         f"Ed2023 Source:\n{filtered_bsi_md}\n\n"
         f"G++ Source:\n{filtered_gpp_md}"
     )
+
+    # logger.debug(f"full promt: {full_prompt}")
 
     async with semaphore:
         ai_response = await ai_client.generate_validated_json_response(
@@ -167,7 +168,7 @@ async def run_stage_matching() -> None:
     """
     Executes the main steps for the matching stage.
     """
-    logger.debug("Starting Stage 'Matching': 1:1 Mapping...")
+    logger.info("Starting Stage 'Matching': 1:1 Mapping of Anforderungen to controls")
 
     if os.path.exists(CONTROLS_ANFORDERUNGEN_JSON_PATH) and not app_config.overwrite_temp_files:
         logger.info("Output file already exists and OVERWRITE_TEMP_FILES is false. Skipping Matching Stage.")

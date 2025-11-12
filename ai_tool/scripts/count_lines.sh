@@ -22,7 +22,10 @@ echo "🔍 Analyzing tracked files and counting lines..."
 
 # Use 'git ls-files' to get a list of all files tracked by git.
 # Pipe this list into a loop to process each file.
-git ls-files | while read -r filename; do
+# We use process substitution (< <(command)) instead of a pipe (|) to avoid
+# running the while loop in a subshell. This ensures that the 'line_counts'
+# associative array is modified in the current shell, not a child process.
+while read -r filename; do
     # Skip directories and non-existent files
     if [ ! -f "$filename" ]; then
         continue
@@ -45,7 +48,7 @@ git ls-files | while read -r filename; do
     # The parameter expansion ${line_counts[$extension]:-0} provides a default of 0.
     ((line_counts["$extension"] = ${line_counts[$extension]:-0} + lines))
 
-done
+done < <(git ls-files)
 
 echo ""
 echo "📊 Line Count Statistics per File Type:"
@@ -73,4 +76,3 @@ echo "+------------------+-----------------+"
 
 echo ""
 echo "✅ Analysis complete."
-

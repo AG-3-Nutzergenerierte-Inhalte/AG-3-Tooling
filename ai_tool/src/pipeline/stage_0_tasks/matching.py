@@ -51,8 +51,9 @@ async def match_baustein_to_zielobjekt(
     matched_uuid = response_json.get("matched_zielobjekt_uuid")
 
     if matched_uuid and matched_uuid in zielobjekte_map:
-        logger.info(f"Successfully matched Baustein '{baustein['id']}' to Zielobjekt '{matched_uuid}'.")
+        zielobjekt_name = zielobjekte_map[matched_uuid].get('name', 'Unknown')
+        logger.info(f"Successfully matched Baustein '{baustein.get('title')}' to Zielobjekt '{zielobjekt_name}'.")
         return matched_uuid
 
-    logger.warning(f"Could not find a suitable match for Baustein '{baustein['id']}'.")
+    logger.warning(f"Could not find a suitable match for Baustein '{baustein.get('id')}'.")
     return None

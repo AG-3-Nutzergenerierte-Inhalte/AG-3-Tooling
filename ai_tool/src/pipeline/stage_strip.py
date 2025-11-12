@@ -9,16 +9,7 @@ import logging
 import json
 import os
 from config import app_config
-from constants import (
-    GPP_KOMPENDIUM_JSON_PATH,
-    BSI_2023_JSON_PATH,
-    SDT_HELPER_OUTPUT_DIR,
-    GPP_STRIPPED_MD_PATH,
-    GPP_STRIPPED_ISMS_MD_PATH,
-    BSI_STRIPPED_MD_PATH,
-    BSI_STRIPPED_ISMS_MD_PATH,
-    ALLOWED_MAIN_GROUPS,
-)
+from constants import *
 
 def _process_controls_recursively(controls, target_objects_list, isms_list):
     """

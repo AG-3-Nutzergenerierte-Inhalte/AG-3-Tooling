@@ -51,7 +51,7 @@ class AiClient:
         self._model_cache = {GROUND_TRUTH_MODEL: self.generative_model}
         
         logger.info(f"Vertex AI Client instantiated for project '{config.gcp_project_id}' in region '{config.region}'.")
-        logger.info(f"System Message Context includes today's date: {current_date}")
+        logger.debug(f"System Message Context includes today's date: {current_date}")
 
     def _get_model_instance(self, model_name: str) -> GenerativeModel:
         """
@@ -64,7 +64,7 @@ class AiClient:
             GenerativeModel instance for the specified model
         """
         if model_name not in self._model_cache:
-            logger.info(f"Creating new model instance for '{model_name}'")
+            logger.debug(f"Creating new model instance for '{model_name}'")
             self._model_cache[model_name] = GenerativeModel(
                 model_name, system_instruction=self.system_message
             )
@@ -134,7 +134,7 @@ class AiClient:
         
         return response_json
 
-    async def generate_json_response(
+    async def generate_validated_json_response(
         self, 
         prompt: str, 
         json_schema: Dict[str, Any], 
@@ -143,38 +143,35 @@ class AiClient:
         model_override: Optional[str] = None,
         max_retries: int = None
     ) -> Dict[str, Any]:
+      
         """
-        Generates a JSON response from the AI model, enforcing a specific schema and
-        optionally providing GCS files as context. Implements an async retry loop
-        with exponential backoff and connection limiting.
+            Generates a JSON response from the AI model, enforcing a specific schema and
+            optionally providing GCS files as context. Implements an async retry loop
+            with exponential backoff and connection limiting.
 
-        Args:
-            prompt: The text prompt for the model.
-            json_schema: The JSON schema to enforce on the model's output.
-            gcs_uris: A list of 'gs://...' URIs pointing to PDF files for context.
-            request_context_log: A string to identify the request source in logs.
-            model_override: Optional model name to use instead of the default.
-            max_retries: Optional override for the number of retries (defaults to MAX_RETRIES).
+            Args:
+                prompt: The text prompt for the model.
+                json_schema: The JSON schema to enforce on the model's output.
+                gcs_uris: A list of 'gs://...' URIs pointing to PDF files for context.
+                request_context_log: A string to identify the request source in logs.
+                model_override: Optional model name to use instead of the default.
+                max_retries: Optional override for the number of retries (defaults to MAX_RETRIES).
 
-        Returns:
-            The parsed JSON response from the model.
-        """
+            Returns:
+                The parsed JSON response from the model.
+            """
+        
         retries = max_retries if max_retries is not None else API_MAX_RETRIES
         
-        # --- Configuration phase (fails fast if invalid) ---
-        # This will raise ValueError if the configuration/schema is bad, preventing entry into the retry loop.
-        # This handles the original AttributeError caused by the schema incompatibility.
         try:
             gen_config = self._prepare_generation_config(json_schema)
         except ValueError as e:
             logger.error(f"[{request_context_log}] Configuration failed. Cannot proceed with AI request: {e}")
             raise
 
-        # Select the appropriate model
         model_to_use = model_override if model_override else GROUND_TRUTH_MODEL
         generative_model = self._get_model_instance(model_to_use)
 
-        # Build the content list.
         contents = [prompt]
         if gcs_uris:
             for uri in gcs_uris:
@@ -182,34 +179,36 @@ class AiClient:
             if self.config.is_test_mode:
                 logger.debug(f"Attaching {len(gcs_uris)} GCS files to the prompt.")
 
-        # --- Execution phase (retries on specific errors) ---
         for attempt in range(retries):
             try:
-                logger.info(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
+                logger.debug(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
                 response = await generative_model.generate_content_async(
                     contents=contents,
                     generation_config=gen_config,
                 )
 
-                # logger.debug(f"[{request_context_log}] Raw model response: {response.text}")
-
                 response_json = self._process_response(response)
 
-                logger.info(f"[{request_context_log}] Successfully generated and parsed JSON response on attempt {attempt + 1}.")
+                validate(instance=response_json, schema=json_schema)
+
+                logger.info(f"[{request_context_log}] Successfully generated and validated JSON on attempt {attempt + 1}.")
                 return response_json
 
-            # Catch only exceptions we specifically want to retry on (Rule 5.3.3).
-            # We retry on transient API errors and ValueErrors/TypeErrors (which we raise for bad responses/JSON/finish reasons).
-            except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError) as e:
+            except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError, ValidationError) as e:
                 wait_time = 2 ** attempt
                 if attempt == retries - 1:
                     logger.critical(f"[{request_context_log}] AI generation failed after all {retries} retries.", exc_info=True)
                     raise
 
+                error_msg = str(e)
+                log_message = f"[{request_context_log}] Attempt {attempt + 1} failed. Retrying in {wait_time}s..."
+
                 if isinstance(e, api_core_exceptions.GoogleAPICallError):
                     logger.warning(f"[{request_context_log}] Generation attempt {attempt + 1} failed with Google API Error (Code: {e.code}): {e.message}. Retrying in {wait_time}s...")
-                else: # ValueError or TypeError (processing errors)
-                    error_msg = str(e)
+                elif isinstance(e, ValidationError):
+                    clean_msg = e.message.split('\n')[0] if '\n' in e.message else e.message
+                    logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed schema validation: '{clean_msg}'. Retrying in {wait_time}s...")
+                else: # ValueError or TypeError
                     if "Failed to parse model response as JSON" in error_msg:
                         logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed: JSON parsing error. Retrying in {wait_time}s...")
                     else:
@@ -217,36 +216,6 @@ class AiClient:
 
                 await asyncio.sleep(wait_time)
 
-            # Catch any other unexpected errors (like SDK bugs or programming errors) that should not be retried.
             except Exception as e:
                 logger.error(f"[{request_context_log}] Unexpected, non-retryable error during AI generation on attempt {attempt + 1}: {type(e).__name__}: {e}", exc_info=True)
                 raise
-
-    async def generate_validated_json_response(
-        self, 
-        prompt: str, 
-        json_schema: Dict[str, Any], 
-        gcs_uris: List[str] = None, 
-        request_context_log: str = "Generic AI Request",
-        model_override: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Generates and validates a JSON response from the AI model.
-        
-        Raises:
-            ValidationError: If the response doesn't match the provided schema
-            
-        Returns:
-            The validated JSON response from the model
-        """
-        try:
-            result = await self.generate_json_response(prompt, json_schema, gcs_uris, request_context_log, model_override)
-            # Validation is done against the original JSON schema, not the OpenAPI converted one
-            # logger.debug(f"result: {result}")
-            validate(instance=result, schema=json_schema)
-            return result
-        except ValidationError as e:
-            # Clean validation error message
-            clean_msg = e.message.split('\n')[0] if '\n' in e.message else e.message
-            logger.error(f"[{request_context_log}] Schema validation failed: {clean_msg}")
-            raise ValidationError(f"Response validation failed: {clean_msg}")
