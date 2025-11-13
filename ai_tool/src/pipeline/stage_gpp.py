@@ -27,6 +27,7 @@ def _find_prop_value(props_list: List[Dict[str, Any]], prop_name: str) -> Option
 def _process_control(control: Dict[str, Any]) -> Optional[Tuple[str, str, Dict[str, Any]]]:
     """
     Extracts key details, UUID, and a simplified representation of a control.
+    Returns a tuple containing the key (target_object or 'ISMS'), UUID, and the simplified control.
     """
     uuid = _find_prop_value(control.get("props", []), "alt-identifier")
     if not uuid:
@@ -34,15 +35,18 @@ def _process_control(control: Dict[str, Any]) -> Optional[Tuple[str, str, Dict[s
         logger.debug(f"Control '{control_id}' is missing 'alt-identifier' property. Skipping.")
         return None
 
-    key = "ISMS"
+    target_obj_val = None
     parts = control.get("parts", [])
     if isinstance(parts, list):
         for part in parts:
             if isinstance(part, dict):
-                target_obj_val = _find_prop_value(part.get("props", []), "target_objects")
-                if target_obj_val:
-                    key = target_obj_val
-                    break
+                # Attempt to find target_objects in the properties of the part
+                found_target = _find_prop_value(part.get("props", []), "target_objects")
+                if found_target:
+                    target_obj_val = found_target
+                    break  # Exit after finding the first target_object
+
+    key = target_obj_val if target_obj_val else "ISMS"
 
     prose = ""
     if isinstance(parts, list):
@@ -61,9 +65,14 @@ def _process_control(control: Dict[str, Any]) -> Optional[Tuple[str, str, Dict[s
     return key, uuid, simplified_control
 
 
-def _traverse_and_extract_controls(node: Dict[str, Any], all_controls: Dict[str, Any]) -> None:
+def _traverse_and_extract_controls(
+    node: Dict[str, Any],
+    target_controls: Dict[str, Any],
+    isms_controls: Dict[str, Any]
+) -> None:
     """
-    Recursively traverses the JSON structure to find and process all control objects.
+    Recursively traverses the JSON structure to find and process all control objects,
+    separating them into ISMS and target-specific controls.
     """
     if "controls" in node and isinstance(node["controls"], list):
         for control in node["controls"]:
@@ -73,33 +82,41 @@ def _traverse_and_extract_controls(node: Dict[str, Any], all_controls: Dict[str,
             processed_data = _process_control(control)
             if processed_data:
                 key, uuid, simplified_control = processed_data
-                all_controls.setdefault(key, {})
-                all_controls[key][uuid] = simplified_control
+                if key == "ISMS":
+                    isms_controls[uuid] = simplified_control
+                else:
+                    target_controls.setdefault(key, {})
+                    target_controls[key][uuid] = simplified_control
 
-            _traverse_and_extract_controls(control, all_controls)
+            # Recursively process nested controls
+            _traverse_and_extract_controls(control, target_controls, isms_controls)
 
     if "groups" in node and isinstance(node["groups"], list):
         for group in node["groups"]:
             if isinstance(group, dict):
-                _traverse_and_extract_controls(group, all_controls)
+                _traverse_and_extract_controls(group, target_controls, isms_controls)
 
 
-def _create_target_controls_map() -> Dict[str, Any]:
+def _create_target_controls_map() -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Loads the G++ Kompendium and flattens it into a target-controls-map.
+    Loads the G++ Kompendium and flattens it into a target-controls-map and an isms-controls-map.
     """
     logger.info(f"Loading G++ Kompendium from {GPP_KOMPENDIUM_JSON_PATH}...")
     data = load_json_file(GPP_KOMPENDIUM_JSON_PATH)
     if not data or 'catalog' not in data:
         logger.error("G++ Kompendium is empty or missing 'catalog' key.")
-        return {}
+        return {}, {}
 
-    logger.info("Starting recursive extraction of controls to create target-controls-map...")
-    extracted_controls: Dict[str, Any] = {}
-    _traverse_and_extract_controls(data['catalog'], extracted_controls)
-    total_controls = sum(len(controls) for controls in extracted_controls.values())
-    logger.info(f"Extraction complete. Found {total_controls} controls.")
-    return extracted_controls
+    logger.info("Starting recursive extraction of controls...")
+    target_controls: Dict[str, Any] = {}
+    isms_controls: Dict[str, Any] = {}
+    _traverse_and_extract_controls(data['catalog'], target_controls, isms_controls)
+
+    total_target = sum(len(controls) for controls in target_controls.values())
+    total_isms = len(isms_controls)
+    logger.info(f"Extraction complete. Found {total_target} target-specific and {total_isms} ISMS controls.")
+
+    return target_controls, isms_controls
 
 
 def _get_parent_names_recursive(
@@ -169,8 +186,8 @@ def run_stage_gpp():
     logger.info("Starting stage_gpp...")
 
     # C.2: Flatten the GPP Kompendium into a target-controls-map
-    target_controls_map = _create_target_controls_map()
-    if not target_controls_map:
+    target_controls_map, isms_controls_map = _create_target_controls_map()
+    if not target_controls_map and not isms_controls_map:
         logger.error("Failed to create target-controls-map. Aborting stage_gpp.")
         return
 
@@ -193,6 +210,11 @@ def run_stage_gpp():
                         applicable_controls.add(control_data['id'])
 
         final_zielobjekt_controls_map[uuid] = sorted(list(applicable_controls))
+
+    # Add the collected ISMS controls to the final map
+    if isms_controls_map:
+        isms_ids = {control['id'] for control in isms_controls_map.values() if 'id' in control}
+        final_zielobjekt_controls_map["ISMS"] = sorted(list(isms_ids))
 
     # C.6: Store the final map
     output_data = {"zielobjekt_controls_map": final_zielobjekt_controls_map}
