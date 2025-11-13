@@ -6,7 +6,7 @@ from start to finish, executing each stage in the correct sequence.
 """
 
 import logging
-from pipeline import stage_strip, stage_gpp, stage_match_bausteine, stage_matching
+from pipeline import stage_strip, stage_gpp, stage_match_bausteine, stage_matching, stage_profiles
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,13 @@ async def run_full_pipeline() -> None:
         await stage_matching.run_stage_matching()
         logger.info("Completed: Anforderung to Kontrolle 1:1 mapping.")
         logger.info("--- STAGE: MATCHING - COMPLETE ---")
+
+        # Stage 4: Generate OSCAL profiles for each Zielobjekt.
+        logger.info("--- STAGE: PROFILES ---")
+        logger.info("Starting: Generating OSCAL profiles.")
+        stage_profiles.run_stage_profiles()
+        logger.info("Completed: Generating OSCAL profiles.")
+        logger.info("--- STAGE: PROFILES - COMPLETE ---")
 
     except Exception as e:
         logger.critical("A critical error occurred during the full pipeline execution.", exc_info=True)
