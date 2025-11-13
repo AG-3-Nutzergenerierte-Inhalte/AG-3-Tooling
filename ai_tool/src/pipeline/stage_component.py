@@ -76,7 +76,7 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
             statements = [{
                 "statement-id": part.get("id", str(uuid.uuid4())),
                 "uuid": str(uuid.uuid4()),
-                "description": part.get("parts", [{}])[0].get("prose", "No description available.")
+                "description": part.get("parts", [{}])[0].get("prose", "No description available.").strip()
             } for part in bsi_control_data.get("parts", []) if part.get("name") == "maturity-level-description"]
 
             implemented_reqs.append({
@@ -95,8 +95,8 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
         prose = part.get("prose")
         if title and prose:
             component_props.append({
-                "name": title,
-                "value": prose
+                "name": title.strip(),
+                "value": prose.strip()
             })
 
     component_definition = {
