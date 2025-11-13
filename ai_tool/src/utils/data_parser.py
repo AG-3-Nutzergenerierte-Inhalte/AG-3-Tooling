@@ -11,6 +11,32 @@ from typing import Any, Dict, List, Tuple
 from constants import ALLOWED_MAIN_GROUPS
 
 
+def find_bausteine_with_prose(bsi_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Parses the BSI 2023 JSON to extract a list of Bausteine that have prose.
+    """
+    bausteine_with_prose = []
+    catalog = bsi_data.get("catalog", {})
+    for group in catalog.get("groups", []):
+        if group.get("id") in ALLOWED_MAIN_GROUPS:
+            for sub_group in group.get("groups", []):
+                if sub_group.get("class") == "baustein":
+                    # Find the 'usage' description for the Baustein
+                    baustein_description = ""
+                    for part in sub_group.get("parts", []):
+                        if part.get("name") == "usage":
+                            baustein_description = part.get("prose", "")
+                            break
+
+                    if baustein_description:
+                        bausteine_with_prose.append({
+                            "id": sub_group.get("id"),
+                            "title": _ensure_string_title(sub_group.get("title")),
+                            "description": baustein_description,
+                        })
+    return bausteine_with_prose
+
+
 def get_anforderungen_for_bausteine(bsi_data: Dict[str, Any]) -> Dict[str, List[str]]:
     """
     Parses the BSI 2023 JSON data to create a map from Baustein ID to a list of its Anforderung IDs.
