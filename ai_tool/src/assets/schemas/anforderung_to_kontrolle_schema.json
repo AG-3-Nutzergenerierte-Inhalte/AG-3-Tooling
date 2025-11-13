@@ -15,7 +15,7 @@
             "type": "string"
           },
           "matched_gpp_control_id": {
-            "description": "The ID of the best-matched G++ Kontrolle, or null if no match is found.",
+            "description": "The ID of the best-matched G++ 'control', or null if no match is found.",
             "type": "string"
           }
         },
