@@ -235,12 +235,24 @@ def run_stage_component():
         for value in controls_anforderungen.values() if 'baustein_id' in value and 'zielobjekt_name' in value
     }
 
+    # Create a fallback lookup for titles from the BSI catalog
+    bsi_baustein_title_lookup = {}
+    for group in bsi_catalog.get("catalog", {}).get("groups", []):
+        for baustein in group.get("groups", []):
+            if baustein.get("id") and baustein.get("title"):
+                bsi_baustein_title_lookup[baustein["id"]] = baustein["title"]
+
+
     for baustein_id, zielobjekt_uuid in baustein_zielobjekt_map.get("baustein_zielobjekt_map", {}).items():
         logger.info(f"Processing Baustein: {baustein_id}")
 
-        baustein_title = baustein_titles.get(baustein_id, "")
+        # Try to get title from the primary source, then fall back to BSI catalog
+        baustein_title = baustein_titles.get(baustein_id)
         if not baustein_title:
-            logger.warning(f"No title found for Baustein ID {baustein_id}. Skipping.")
+            baustein_title = bsi_baustein_title_lookup.get(baustein_id)
+
+        if not baustein_title:
+            logger.warning(f"No title found for Baustein ID {baustein_id} in either controls_anforderungen.json or BSI catalog. Skipping.")
             continue
 
         sanitized_zielobjekt_name = sanitize_filename(baustein_title)
