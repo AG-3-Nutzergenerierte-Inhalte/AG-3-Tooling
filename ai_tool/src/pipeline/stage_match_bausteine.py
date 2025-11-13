@@ -5,10 +5,10 @@ import asyncio
 import logging
 from typing import Dict, Any, List
 
-from ..clients.ai_client import AiClient
-from ..utils.data_loader import load_json_file, save_json_file, load_zielobjekte_csv
-from ..utils.data_parser import find_bausteine_with_prose
-from ..constants import (
+from clients.ai_client import AiClient
+from utils.data_loader import load_json_file, save_json_file, load_zielobjekte_csv
+from utils.data_parser import find_bausteine_with_prose
+from constants import (
     BSI_2023_JSON_PATH,
     ZIELOBJEKTE_CSV_PATH,
     PROMPT_CONFIG_PATH,
