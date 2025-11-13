@@ -143,11 +143,11 @@ def _create_zielobjekt_map() -> Dict[str, Any]:
 
     # C.3: Create a raw map for easy lookup by UUID
     zielobjekte_raw_map = {
-        z["GART_Objekt_UUID"]: {
+        z["UUID"].strip(): {
             "Zielobjekt": z["Zielobjekt"],
             "ChildOfUUID": z.get("ChildOfUUID")
         }
-        for z in zielobjekte_data if "GART_Objekt_UUID" in z
+        for z in zielobjekte_data if "UUID" in z
     }
 
     # C.4: Recursively get all parent names for each Zielobjekt
