@@ -3,7 +3,8 @@ This module contains the logic for matching BSI Bausteine to G++ Zielobjekte.
 """
 import asyncio
 import logging
-from typing import Dict, Any, List
+import os
+from typing import Dict, Any, List, Optional, Tuple
 
 from config import app_config
 from clients.ai_client import AiClient
@@ -20,10 +21,21 @@ async def match_baustein_to_zielobjekt(
     zielobjekte_map: Dict[str, Any],
     prompt_instruction: str,
     schema: Dict[str, Any],
+    semaphore: asyncio.Semaphore,
 ) -> tuple[str, str | None]:
     """
     Matches a BSI Baustein to the best G++ Zielobjekt using an AI model.
-    Returns the Baustein ID and the matched Zielobjekt UUID.
+
+    Args:
+        ai_client: The AI client instance.
+        baustein: The Baustein object to match.
+        zielobjekte_map: A map of available Zielobjekte.
+        prompt_instruction: The base prompt instruction.
+        schema: The JSON schema for the expected response.
+        semaphore: The asyncio semaphore for concurrency control.
+
+    Returns:
+        A tuple of (baustein_id, matched_zielobjekt_uuid) or (baustein_id, None).
     """
     baustein_id = baustein.get("id", "unknown")
     zielobjekte_choices = "\n".join(
@@ -44,21 +56,29 @@ async def match_baustein_to_zielobjekt(
     )
 
     zielobjekt_names = [data.get("Zielobjekt", "") for data in zielobjekte_map.values()]
-    dynamic_schema = schema.copy()
-    dynamic_schema["properties"]["matched_zielobjekt"]["enum"] = zielobjekt_names
+    
+    # logger.info(f"PROMPT: {prompt}")
 
-    response_json = await ai_client.generate_validated_json_response(
-        prompt=prompt,
-        json_schema=dynamic_schema,
-        request_context_log=f"BausteinToZielobjekt-{baustein_id}",
-    )
+    response_json = None
+    async with semaphore:
+        response_json = await ai_client.generate_validated_json_response(
+            prompt=prompt,
+            json_schema=schema,
+            request_context_log=f"BausteinToZielobjekt-{baustein_id}",
+        )
+
+    if not response_json:
+        logger.warning(
+            f"No valid AI response for Baustein '{baustein_id}'. Skipping."
+        )
+        return baustein_id, None
 
     matched_zielobjekt_name = response_json.get("matched_zielobjekt")
 
     if matched_zielobjekt_name:
         for uuid, data in zielobjekte_map.items():
             if data.get("Zielobjekt") == matched_zielobjekt_name:
-                logger.info(
+                logger.debug(
                     f"Successfully matched Baustein '{baustein.get('title')}' to "
                     f"Zielobjekt '{matched_zielobjekt_name}' (UUID: {uuid})."
                 )
@@ -68,38 +88,22 @@ async def match_baustein_to_zielobjekt(
     return baustein_id, None
 
 
-async def _run_matching_tasks(
-    ai_client: AiClient,
-    bausteine: List[Dict[str, Any]],
-    zielobjekte_map: Dict[str, Any],
-    prompt_instruction: str,
-    schema: Dict[str, Any],
-) -> Dict[str, str]:
-    """
-    Creates and runs concurrent matching tasks for all Bausteine.
-    """
-    tasks = [
-        match_baustein_to_zielobjekt(
-            ai_client, baustein, zielobjekte_map, prompt_instruction, schema
-        )
-        for baustein in bausteine
-    ]
-    results = await asyncio.gather(*tasks)
-
-    # Filter out None results and construct the final map
-    baustein_zielobjekt_map = {
-        baustein_id: zielobjekt_uuid
-        for baustein_id, zielobjekt_uuid in results
-        if zielobjekt_uuid is not None
-    }
-    return baustein_zielobjekt_map
-
-
-def run_stage_match_bausteine():
+async def run_stage_match_bausteine() -> None:
     """
     Main function to run the Baustein-to-Zielobjekt matching stage.
     """
     logger.info("Starting stage_match_bausteine...")
+
+    # Idempotency Check (Rule 5.2.7)
+    if (
+        os.path.exists(BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
+        and not app_config.overwrite_temp_files
+    ):
+        logger.info(
+            "Output file already exists and OVERWRITE_TEMP_FILES is false. "
+            "Skipping Baustein-to-Zielobjekt matching stage."
+        )
+        return
 
     # Load all necessary data
     bsi_data = load_json_file(BSI_2023_JSON_PATH)
@@ -110,34 +114,59 @@ def run_stage_match_bausteine():
     # Prepare data for matching
     bausteine_with_prose = find_bausteine_with_prose(bsi_data)
     zielobjekte_map = {
-        z["GART_Objekt_UUID"]: {"Zielobjekt": z["Zielobjekt"], "Definition": z.get("Definition", "")}
-        for z in zielobjekte_data if "GART_Objekt_UUID" in z
+        z["UUID"]: {
+            "Zielobjekt": z["Zielobjekt"],
+            "Definition": z.get("Definition", ""),
+        }
+        for z in zielobjekte_data
+        if "UUID" in z
     }
-    prompt_instruction = prompt_config.get("baustein_zielobjekt_matching_instruction", "")
+    prompt_instruction = prompt_config["baustein_to_zielobjekt_prompt"]
+    
 
-    # Initialize AI client
+    # Initialize AI client and Semaphore (Rule 5.3.1)
     ai_client = AiClient(app_config)
+    semaphore = asyncio.Semaphore(app_config.max_concurrent_ai_requests)
+
+    # Respect Test Mode (Rule 9.1)
+    bausteine_to_process = (
+        bausteine_with_prose[:3]
+        if app_config.is_test_mode
+        else bausteine_with_prose
+    )
 
     # Run the asynchronous matching process
-    logger.info(f"Starting AI matching for {len(bausteine_with_prose)} Bausteine...")
-    final_map = asyncio.run(
-        _run_matching_tasks(
+    logger.info(
+        f"Starting AI matching for {len(bausteine_to_process)} Bausteine..."
+    )
+
+    tasks = [
+        match_baustein_to_zielobjekt(
             ai_client,
-            bausteine_with_prose,
+            baustein,
             zielobjekte_map,
             prompt_instruction,
             schema,
+            semaphore,
         )
-    )
+        for baustein in bausteine_to_process
+    ]
+    results = await asyncio.gather(*tasks)
+
+    # Filter out None results and construct the final map
+    final_map = {
+        baustein_id: zielobjekt_uuid
+        for baustein_id, zielobjekt_uuid in results
+        if zielobjekt_uuid is not None
+    }
 
     # Save the results
     output_data = {"baustein_zielobjekt_map": final_map}
-    logger.info(f"Saving the final Baustein-Zielobjekt map to {BAUSTEINE_ZIELOBJEKTE_JSON_PATH}...")
+    logger.debug(
+        f"Saving the final Baustein-Zielobjekt map to {BAUSTEINE_ZIELOBJEKTE_JSON_PATH}..."
+    )
     save_json_file(output_data, BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
 
-    logger.info(f"Stage_match_bausteine finished. Matched {len(final_map)} Bausteine.")
-
-if __name__ == "__main__":
-    # Configure logging for direct script execution
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    run_stage_match_bausteine()
+    logger.info(
+        f"Stage_match_bausteine finished. Matched {len(final_map)} Bausteine."
+    )

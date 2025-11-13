@@ -40,7 +40,7 @@ async def main() -> None:
         if args.stage == "stage_gpp":
             stage_gpp.run_stage_gpp()
         elif args.stage == "stage_match_bausteine":
-            stage_match_bausteine.run_stage_match_bausteine()
+            await stage_match_bausteine.run_stage_match_bausteine()
         elif args.stage == "stage_strip":
             stage_strip.run_stage_strip()
         elif args.stage == "stage_matching":
