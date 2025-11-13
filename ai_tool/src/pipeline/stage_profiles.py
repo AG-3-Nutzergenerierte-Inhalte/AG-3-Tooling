@@ -84,11 +84,15 @@ def run_stage_profiles():
     zielobjekt_name_map = {row['UUID']: row['Zielobjekt'] for row in zielobjekte_data if 'UUID' in row and 'Zielobjekt' in row}
 
     for zielobjekt_id, controls in zielobjekt_controls.get("zielobjekt_controls_map", {}).items():
-        if zielobjekt_id not in zielobjekt_name_map:
+        zielobjekt_name = ""
+        if zielobjekt_id == "ISMS":
+            zielobjekt_name = "ISMS"
+        elif zielobjekt_id in zielobjekt_name_map:
+            zielobjekt_name = zielobjekt_name_map[zielobjekt_id]
+        else:
             logger.warning(f"No name found for Zielobjekt with UUID {zielobjekt_id}. Skipping profile generation.")
             continue
 
-        zielobjekt_name = zielobjekt_name_map[zielobjekt_id]
         profile = create_oscal_profile(zielobjekt_id, zielobjekt_name, controls)
 
         sanitized_name = sanitize_filename(zielobjekt_name)

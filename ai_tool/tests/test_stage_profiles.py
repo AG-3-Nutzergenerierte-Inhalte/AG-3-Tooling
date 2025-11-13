@@ -24,7 +24,8 @@ class TestStageProfiles(unittest.TestCase):
             "zielobjekt_controls_map": {
                 "efd76832-f5a1-432a-836d-c8d5c6d212cc": ["ASST.3.1", "ASST.3.1.1"],
                 "d2a23b62-9c66-4f72-98e2-17518d5dbe0f": ["ASST.3.12"],
-                "00000000-0000-0000-0000-000000000000": ["TEST.1.1"]
+                "00000000-0000-0000-0000-000000000000": ["TEST.1.1"],
+                "ISMS": ["ISMS.1", "ISMS.2"]
             }
         }
         self.mock_zielobjekte_csv = [
@@ -50,23 +51,31 @@ class TestStageProfiles(unittest.TestCase):
         mock_create_dir.assert_called_once_with(self.output_dir)
 
         # Verify that the correct number of profiles are written
-        self.assertEqual(mock_write_json.call_count, 2)
+        self.assertEqual(mock_write_json.call_count, 3)
 
         # Verify the content of the written profiles
-        first_call_args = mock_write_json.call_args_list[0].args
-        second_call_args = mock_write_json.call_args_list[1].args
+        call_args_list = [call.args for call in mock_write_json.call_args_list]
 
-        # First profile
-        self.assertIn("administrierende_profile.json", first_call_args[0])
-        profile1_content = first_call_args[1]
+        # Profile 1: Administrierende
+        admin_profile_args = next(args for args in call_args_list if "administrierende_profile.json" in args[0])
+        self.assertIsNotNone(admin_profile_args)
+        profile1_content = admin_profile_args[1]
         self.assertEqual(profile1_content['profile']['metadata']['title'], 'efd76832-f5a1-432a-836d-c8d5c6d212cc Administrierende')
         self.assertEqual(profile1_content['profile']['imports'][0]['include-controls'][0]['with-ids'], ["ASST.3.1", "ASST.3.1.1"])
 
-        # Second profile
-        self.assertIn("cloud-dienste_profile.json", second_call_args[0])
-        profile2_content = second_call_args[1]
+        # Profile 2: Cloud-Dienste
+        cloud_profile_args = next(args for args in call_args_list if "cloud-dienste_profile.json" in args[0])
+        self.assertIsNotNone(cloud_profile_args)
+        profile2_content = cloud_profile_args[1]
         self.assertEqual(profile2_content['profile']['metadata']['title'], 'd2a23b62-9c66-4f72-98e2-17518d5dbe0f Cloud-Dienste')
         self.assertEqual(profile2_content['profile']['imports'][0]['include-controls'][0]['with-ids'], ["ASST.3.12"])
+
+        # Profile 3: ISMS
+        isms_profile_args = next(args for args in call_args_list if "isms_profile.json" in args[0])
+        self.assertIsNotNone(isms_profile_args)
+        profile3_content = isms_profile_args[1]
+        self.assertEqual(profile3_content['profile']['metadata']['title'], 'ISMS ISMS')
+        self.assertEqual(profile3_content['profile']['imports'][0]['include-controls'][0]['with-ids'], ["ISMS.1", "ISMS.2"])
 
         # Verify that a warning is logged for the missing Zielobjekt
         mock_log_warning.assert_called_once_with("No name found for Zielobjekt with UUID 00000000-0000-0000-0000-000000000000. Skipping profile generation.")
