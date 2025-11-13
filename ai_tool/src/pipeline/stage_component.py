@@ -19,7 +19,7 @@ from constants import (
     OSCAL_VERSION,
     REPO_ROOT
 )
-from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file
+from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
 from utils.oscal_utils import validate_oscal
 from utils.text_utils import sanitize_filename
 
@@ -68,7 +68,6 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
 
     implemented_reqs = []
     for gpp_control_id in gpp_controls:
-        # Reverse lookup: find the BSI ID that maps to the current G++ ID
         bsi_anforderung_id = next((bsi_id for bsi_id, gpp_id in mapping.items() if gpp_id == gpp_control_id), None)
 
         if bsi_anforderung_id and bsi_anforderung_id in bsi_controls_lookup:
@@ -88,9 +87,26 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
                 "statements": statements
             })
 
-    # For the aggregated ISMS component, fetch parts from ISMS.1. For others, fetch from their own ID.
     baustein_key_for_parts = "ISMS.1" if baustein_id == "ISMS" else baustein_id
     baustein_parts = bsi_baustein_lookup.get(baustein_key_for_parts, {}).get("parts", [])
+
+    remarks_str = ""
+    risk_parts = [p for p in baustein_parts if p.get("name") == "risk"]
+    other_parts = [p for p in baustein_parts if p.get("name") != "risk"]
+
+    for part in other_parts:
+        title = part.get("title", "")
+        prose = part.get("prose", "")
+        if title and prose:
+            remarks_str += f"## {title}\n\n{prose}\n\n"
+
+    if risk_parts:
+        remarks_str += "## Risiken\n\n"
+        for part in risk_parts:
+            title = part.get("title", "")
+            prose = part.get("prose", "")
+            if title and prose:
+                remarks_str += f"### {title}\n\n{prose}\n\n"
 
     component_definition = {
         "component-definition": {
@@ -106,10 +122,10 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
                 "type": get_component_type(baustein_id),
                 "title": f"{baustein_id} {baustein_title}",
                 "description": f"This component represents the implementation of all controls for Baustein {baustein_id}.",
-                "parts": baustein_parts,
+                "remarks": remarks_str.strip(),
                 "control-implementations": [{
                     "uuid": str(uuid.uuid4()),
-                    "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"), # Create public URL
+                    "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"),
                     "description": f"Implementation for all controls in Baustein {baustein_id}",
                     "implemented-requirements": implemented_reqs
                 }]
@@ -121,13 +137,29 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
     output_path = os.path.join(output_dir, output_filename)
     write_json_file(output_path, component_definition)
 
-    if not validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH):
-         logger.error(f"Validation failed for {output_filename}")
+    validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
 
 
 def generate_minimal_component(baustein_id: str, baustein_title: str, profile_path: str, output_dir: str):
     """Generates the minimal component file that only imports the profile."""
     sanitized_name = sanitize_filename(f"{baustein_id}_{baustein_title}")
+
+    if not os.path.exists(profile_path):
+        logger.warning(f"Profile not found for {baustein_id} at {profile_path}. Skipping minimal component.")
+        return
+
+    profile = read_json_file(profile_path)
+    if not profile:
+        logger.error(f"Failed to load profile for {baustein_id} from {profile_path}")
+        return
+
+    gpp_controls = profile.get("profile", {}).get("imports", [{}])[0].get("include-controls", [{}])[0].get("with-ids", [])
+
+    implemented_reqs = [{
+        "uuid": str(uuid.uuid4()),
+        "control-id": gpp_control_id,
+        "description": f"This control is implemented as defined in the profile."
+    } for gpp_control_id in gpp_controls]
 
     component_definition = {
         "component-definition": {
@@ -145,9 +177,9 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, profile_pa
                 "description": f"This component imports the profile for Baustein {baustein_id}.",
                 "control-implementations": [{
                     "uuid": str(uuid.uuid4()),
-                    "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"), # Create public URL
+                    "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"),
                     "description": f"Imports all controls from the profile for Baustein {baustein_id}.",
-                    "implemented-requirements": [] # Empty as per requirements
+                    "implemented-requirements": implemented_reqs
                 }]
             }]
         }
@@ -157,8 +189,7 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, profile_pa
     output_path = os.path.join(output_dir, output_filename)
     write_json_file(output_path, component_definition)
 
-    if not validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH):
-        logger.error(f"Validation failed for {output_filename}")
+    validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
 
 
 def run_stage_component():
@@ -185,10 +216,13 @@ def run_stage_component():
 
     for baustein_id, zielobjekt_uuid in baustein_zielobjekt_map.get("baustein_zielobjekt_map", {}).items():
         logger.info(f"Processing Baustein: {baustein_id}")
-        baustein_title = baustein_titles.get(baustein_id, baustein_id)
 
-        zielobjekt_name = baustein_titles.get(baustein_id, "")
-        sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
+        baustein_title = baustein_titles.get(baustein_id, "")
+        if not baustein_title:
+            logger.warning(f"No title found for Baustein ID {baustein_id}. Skipping.")
+            continue
+
+        sanitized_zielobjekt_name = sanitize_filename(baustein_title)
         profile_filename = f"{sanitized_zielobjekt_name}_profile.json"
         profile_path = os.path.join(profile_dir, profile_filename)
 
@@ -197,7 +231,6 @@ def run_stage_component():
         generate_detailed_component(baustein_id, baustein_title, profile_path, mapping, bsi_catalog, output_dir)
         generate_minimal_component(baustein_id, baustein_title, profile_path, output_dir)
 
-    # Handle special ISMS case
     logger.info("Processing special ISMS Baustein")
     isms_baustein_id = "ISMS"
     isms_baustein_title = "ISMS"

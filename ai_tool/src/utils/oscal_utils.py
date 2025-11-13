@@ -28,6 +28,13 @@ def validate_oscal(json_path: str, schema_path: str) -> bool:
         logger.error(f"Could not load schema from {schema_path}")
         return False
 
+    # Workaround for https://github.com/python-jsonschema/jsonschema/issues/1213
+    # The OSCAL schema uses a Unicode-aware regex that is not supported by the 'regex'
+    # format checker in jsonschema. We remove the pattern to allow for structural validation.
+    if 'definitions' in schema and 'TokenDatatype' in schema['definitions']:
+        if 'pattern' in schema['definitions']['TokenDatatype']:
+            del schema['definitions']['TokenDatatype']['pattern']
+
     instance = read_json_file(json_path)
     if not instance:
         logger.error(f"Could not load JSON instance from {json_path}")
@@ -38,7 +45,7 @@ def validate_oscal(json_path: str, schema_path: str) -> bool:
         logger.info(f"Successfully validated {json_path} against {schema_path}")
         return True
     except ValidationError as e:
-        logger.error(f"Validation failed for {json_path}: {e.message} on instance {e.instance}")
+        logger.error(f"Validation failed for {json_path}: {e.message}")
         return False
     except Exception as e:
         logger.error(f"An unexpected error occurred during validation of {json_path}: {e}")
