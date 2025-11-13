@@ -10,7 +10,7 @@ import logging
 import asyncio
 import argparse
 
-from pipeline import stage_0, stage_strip, stage_matching, processing
+from pipeline import stage_strip, stage_gpp, stage_match_bausteine, stage_matching, processing
 from utils.logger import setup_logging
 
 
@@ -29,7 +29,7 @@ async def main() -> None:
         "--stage",
         type=str,
         required=False,
-        choices=["stage_0", "stage_strip", "stage_matching"],
+        choices=["stage_gpp", "stage_match_bausteine", "stage_strip", "stage_matching"],
         help="The pipeline stage to execute. If not provided, the full pipeline will run.",
     )
     args = parser.parse_args()
@@ -37,8 +37,10 @@ async def main() -> None:
 
     if args.stage:
         logger.info(f"Starting OSCAL generation pipeline for stage: {args.stage}...")
-        if args.stage == "stage_0":
-            await stage_0.run_phase_0()
+        if args.stage == "stage_gpp":
+            stage_gpp.run_stage_gpp()
+        elif args.stage == "stage_match_bausteine":
+            stage_match_bausteine.run_stage_match_bausteine()
         elif args.stage == "stage_strip":
             stage_strip.run_stage_strip()
         elif args.stage == "stage_matching":
