@@ -83,30 +83,21 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
                 "uuid": str(uuid.uuid4()),
                 "control-id": gpp_control_id,
                 "description": f"Implementation for {gpp_control_id} based on BSI {bsi_anforderung_id}",
-                "props": bsi_control_data.get("props", []),
                 "statements": statements
             })
 
     baustein_key_for_parts = "ISMS.1" if baustein_id == "ISMS" else baustein_id
     baustein_parts = bsi_baustein_lookup.get(baustein_key_for_parts, {}).get("parts", [])
 
-    remarks_str = ""
-    risk_parts = [p for p in baustein_parts if p.get("name") == "risk"]
-    other_parts = [p for p in baustein_parts if p.get("name") != "risk"]
-
-    for part in other_parts:
-        title = part.get("title", "")
-        prose = part.get("prose", "")
+    component_props = []
+    for part in baustein_parts:
+        title = part.get("title")
+        prose = part.get("prose")
         if title and prose:
-            remarks_str += f"## {title}\n\n{prose}\n\n"
-
-    if risk_parts:
-        remarks_str += "## Risiken\n\n"
-        for part in risk_parts:
-            title = part.get("title", "")
-            prose = part.get("prose", "")
-            if title and prose:
-                remarks_str += f"### {title}\n\n{prose}\n\n"
+            component_props.append({
+                "name": title,
+                "value": prose
+            })
 
     component_definition = {
         "component-definition": {
@@ -122,7 +113,7 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
                 "type": get_component_type(baustein_id),
                 "title": f"{baustein_id} {baustein_title}",
                 "description": f"This component represents the implementation of all controls for Baustein {baustein_id}.",
-                "remarks": remarks_str.strip(),
+                "props": component_props,
                 "control-implementations": [{
                     "uuid": str(uuid.uuid4()),
                     "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"),
