@@ -5,16 +5,11 @@ import asyncio
 import logging
 from typing import Dict, Any, List
 
+from config import app_config
 from clients.ai_client import AiClient
 from utils.data_loader import load_json_file, save_json_file, load_zielobjekte_csv
 from utils.data_parser import find_bausteine_with_prose
-from constants import (
-    BSI_2023_JSON_PATH,
-    ZIELOBJEKTE_CSV_PATH,
-    PROMPT_CONFIG_PATH,
-    BAUSTEIN_TO_ZIELOBJEKT_SCHEMA_PATH,
-    BAUSTEINE_ZIELOBJEKTE_JSON_PATH,
-)
+from constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +116,7 @@ def run_stage_match_bausteine():
     prompt_instruction = prompt_config.get("baustein_zielobjekt_matching_instruction", "")
 
     # Initialize AI client
-    ai_client = AiClient()
+    ai_client = AiClient(app_config)
 
     # Run the asynchronous matching process
     logger.info(f"Starting AI matching for {len(bausteine_with_prose)} Bausteine...")
