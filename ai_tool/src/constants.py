@@ -33,6 +33,8 @@ BAUSTEINE_ZIELOBJEKTE_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "bausteine
 CONTROLS_ANFORDERUNGEN_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "controls_anforderungen.json")
 ZIELOBJEKT_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "zielobjekt_controls.json")
 PROZZESSBAUSTEINE_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "prozessbausteine_mapping.json")
+SDT_PROFILES_DIR = os.path.join(SDT_OUTPUT_DIR, "profiles")
+SDT_COMPONENTS_DE_DIR = os.path.join(SDT_OUTPUT_DIR, "components/DE")
 
 # Paths for the 'stage_strip' output files
 
@@ -47,6 +49,7 @@ PROMPT_CONFIG_PATH = os.path.join(SRC_ROOT, "assets/json/prompt_config.json")
 BAUSTEIN_TO_ZIELOBJEKT_SCHEMA_PATH = os.path.join(SRC_ROOT, "assets/schemas/baustein_to_zielobjekt_schema.json")
 ANFORDERUNG_TO_KONTROLLE_SCHEMA_PATH = os.path.join(SRC_ROOT, "assets/schemas/anforderung_to_kontrolle_schema.json")
 MATCHING_SCHEMA_PATH = os.path.join(SRC_ROOT, "assets/schemas/matching_schema.json")
+OSCAL_COMPONENT_SCHEMA_PATH = os.path.join(REPO_ROOT, "oscal_json_schemas/oscal_component_schema.json")
 
 # --- AI Model Configuration ---
 GROUND_TRUTH_MODEL = "gemini-2.5-flash"

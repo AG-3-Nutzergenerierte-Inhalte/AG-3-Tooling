@@ -10,7 +10,7 @@ import logging
 import asyncio
 import argparse
 
-from pipeline import stage_strip, stage_gpp, stage_match_bausteine, stage_matching, stage_profiles, processing
+from pipeline import stage_strip, stage_gpp, stage_match_bausteine, stage_matching, stage_profiles, stage_component, processing
 from utils.logger import setup_logging
 
 
@@ -29,7 +29,7 @@ async def main() -> None:
         "--stage",
         type=str,
         required=False,
-        choices=["stage_gpp", "stage_match_bausteine", "stage_strip", "stage_matching", "stage_profiles"],
+        choices=["stage_gpp", "stage_match_bausteine", "stage_strip", "stage_matching", "stage_profiles", "stage_component"],
         help="The pipeline stage to execute. If not provided, the full pipeline will run.",
     )
     args = parser.parse_args()
@@ -47,6 +47,8 @@ async def main() -> None:
             await stage_matching.run_stage_matching()
         elif args.stage == "stage_profiles":
             stage_profiles.run_stage_profiles()
+        elif args.stage == "stage_component":
+            await stage_component.run_stage_component()
     else:
         logger.info("No stage specified. Starting full pipeline execution...")
         await processing.run_full_pipeline()
