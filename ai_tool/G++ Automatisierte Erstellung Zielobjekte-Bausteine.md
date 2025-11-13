@@ -1,15 +1,3 @@
-`Case: `Request to update the primary project documentation file (`G++ Automatisierte Erstellung Zielobjekte-Bausteine.md`) to reflect the new full pipeline execution mode.
-`---`
-`Dixie: `I have updated the project's core documentation to reflect the recent architectural changes.
-
-The document now accurately describes both the single-stage execution mode and the new, default end-to-end pipeline run. I have added a high-level Mermaid diagram to visualize the full pipeline flow and consolidated the execution examples into a new, dedicated section for clarity.
-
-### Updated Documentation
-
-Here is the full, updated content for the documentation file.
-
-`File: G++ Automatisierte Erstellung Zielobjekte-Bausteine.md`
-```markdown
 # **Automatisierte Erstellung hybrider OSCAL-Komponentendefinitionen mittels eingeschränkter 1:1 KI-Abbildung**
 
 Dieses Dokument beschreibt ein überarbeitetes Konzeptrahmenwerk für die automatisierte Erstellung von OSCAL 1.1.3 Komponentendefinitionen, welches die Migration von BSI IT-Grundschutz Edition 2023 (Ed2023) zum modernisierten Grundschutz++ (G++) erleichtern soll. Die Überarbeitung spezifiziert eine Automatisierungsstrategie, die für die Ausführung auf der Google Cloud Platform (GCP) konzipiert ist und Künstliche Intelligenz (KI) für die semantische Abbildung unter einer strikt durchgesetzten Eins-zu-Eins (1:1) Entsprechung zwischen Altanforderungen und modernen Kontrollen nutzt.
@@ -54,91 +42,40 @@ Die Kernlogik für den vollständigen Pipeline-Durchlauf ist in `processing.py` 
 ```mermaid
 flowchart TD
     A[Start: Full Pipeline Run] --> B(Stage: stage_strip);
-    B --> C(Stage: stage_0);
-    C --> D(Stage: stage_matching);
-    D --> E[End];
+    B --> C(Stage: stage_gpp);
+    C --> D(Stage: stage_match_bausteine);
+    D --> E(Stage: stage_matching);
+    E --> F[End];
 ```
 
 ### **3.1 Stage: `stage_strip` - Datenvorverarbeitung**
 
-Diese vorgeschaltete Stage dient dazu, die umfangreichen JSON-Quelldateien von BSI und G++ in ein kompaktes, für Entwickler lesbares Markdown-Format zu überführen. Dies erleichtert die manuelle Analyse und das Debugging. Die Logik berücksichtigt dabei die spezifische Struktur der jeweiligen Quelldateien.
+Diese vorgeschaltete Stage dient dazu, die umfangreichen JSON-Quelldateien von BSI und G++ in ein kompaktes, für Entwickler lesbares Markdown-Format zu überführen. Dies erleichtert die manuelle Analyse und das Debugging.
+
+### **3.2 Stage: `stage_gpp` - G++ Kompendium Verarbeitung**
+
+Diese Stage ist rein deterministisch und verantwortlich für die Verarbeitung des G++ Kompendiums. Sie erstellt eine umfassende und strukturierte Karte aller G++ Kontrollen und ihrer Beziehung zu den Zielobjekten.
 
 **Prozess:**
 
-1.  **G++-Datenverarbeitung:** Das G++ Kompendium (`Grundschutz++-Kompendium.json`) wird rekursiv durchlaufen, um alle Kontrollen, auch die ineinander verschachtelten, zu erfassen. Die Kontrollen werden basierend auf dem Vorhandensein eines `target_objects`-Eintrags in zwei separate Dateien aufgeteilt:
-    *   Kontrollen **mit** `target_objects`-Eintrag werden in `gpp_stripped.md` gespeichert. Dies sind in der Regel die primären, auf Zielobjekte anwendbaren Kontrollen.
-    *   Kontrollen **ohne** `target_objects`-Eintrag, die oft prozessualen oder ISMS-Charakter haben, werden in `gpp_isms_stripped.md` gespeichert.
-    Für jede Kontrolle werden `id`, `title`, `description` (gekürzt auf 150 Zeichen) und die `UUID` extrahiert.
+1.  **Flattening:** Das G++ Kompendium (`Grundschutz++-Kompendium.json`) wird rekursiv durchlaufen, um eine flache `target-controls-map` zu erstellen. Diese Map gruppiert alle G++ Kontrollen unter ihrem primären Zielobjekt-Namen.
+2.  **Zielobjekt-Hierarchie:** Die `zielobjekte.csv` wird eingelesen, um eine `zielobjekt-map` zu erstellen. Für jedes Zielobjekt wird die `ChildOfUUID`-Beziehung rekursiv verfolgt, um eine Liste aller übergeordneten Namen zu erstellen (`all_applicable_names`).
+3.  **Control Mapping:** Die Pipeline iteriert durch die `zielobjekt-map`. Für jedes Zielobjekt werden alle seine anwendbaren Namen (sein eigener und die seiner Eltern) verwendet, um alle relevanten Kontrollen aus der `target-controls-map` nachzuschlagen.
+4.  **Speichern:** Das Ergebnis, eine Zuordnung von jeder Zielobjekt-UUID zu einer Liste aller anwendbaren Kontroll-IDs, wird in `zielobjekt_controls.json` gespeichert.
 
-2.  **BSI-Datenverarbeitung:** Die BSI 2023-Daten (`BSI_GS_OSCAL_current_2023_benutzerdefinierte.json`) werden eingelesen und Anforderungen basierend auf ihrer Gruppenzugehörigkeit gefiltert:
-    *   Anforderungen aus den in `constants.ALLOWED_MAIN_GROUPS` definierten Hauptgruppen (z. B. `APP`, `SYS`) werden in `bsi_2023_stripped.md` gespeichert.
-    *   Alle anderen Anforderungen (z. B. aus `ISMS`, `ORP`) werden in `bsi_2023_stripped_ISMS.md` gespeichert.
+### **3.3 Stage: `stage_match_bausteine` - KI-gestützte Baustein-Zuordnung**
 
-### **3.2 Stage: `stage_0` - KI-gestützte Zuordnung**
+Diese Stage nutzt KI, um jeden technischen BSI Baustein dem am besten passenden G++ Zielobjekt zuzuordnen.
 
-Dies ist die Kern-Stage der Pipeline. Sie orchestriert den gesamten Prozess der Zuordnung von BSI-Bausteinen und -Anforderungen zu ihren G++-Äquivalenten. Die Stage ist idempotent: Wenn die Ausgabedateien bereits existieren und `OVERWRITE_TEMP_FILES` auf `false` steht, wird die Ausführung übersprungen.
+**Prozess:**
 
-#### **3.2.1 Prozess-Flowchart**
+1.  **Daten laden:** BSI Bausteine (mit Prosa) und G++ Zielobjekte (mit Definitionen) werden geladen.
+2.  **KI-Matching:** Für jeden BSI Baustein wird ein asynchroner Aufruf an das KI-Modell gesendet. Der Prompt enthält den Titel und die Beschreibung des Bausteins sowie eine Liste der verfügbaren Zielobjekte mit deren Definitionen.
+3.  **Validierung und Speicherung:** Die KI gibt den Namen des am besten passenden Zielobjekts zurück. Diese Antwort wird validiert und die resultierende Zuordnung von Baustein-ID zu Zielobjekt-UUID wird in `bausteine_zielobjekt.json` gespeichert.
 
-```mermaid
-flowchart TD
-    A[Start: run_phase_0] --> B{Idempotency Check};
-    B -- Files exist --> C[End];
-    B -- Files missing --> D[Initialize AiClient];
+### **3.4 Stage: `stage_matching` - KI-gestützte Anforderungs-Zuordnung**
 
-    D --> E[Load Data];
-    subgraph "Daten laden"
-        E[Load Zielobjekte, BSI JSON, G++ JSON];
-    end
-
-    E --> F[Parse Data];
-    subgraph "Daten parsen"
-        F[Parse Zielobjekte, BSI Bausteine, G++ Controls];
-    end
-
-    F --> G[Loop through BSI Bausteine];
-    G --> H{Match Baustein to Zielobjekt};
-    H -- KI Call --> I[Matched Zielobjekt UUID];
-
-    I --> J[Get All Inherited Controls];
-    subgraph "G++ Vererbung"
-        J[Recursively traverse Zielobjekt hierarchy];
-        J --> K[Return Dict of {Control-ID: Title}];
-    end
-
-    K --> L[Batch BSI Controls];
-    L -- Loop over batches --> M{Match BSI Controls to G++ Controls};
-    M -- KI Call --> N[Batch Results Map];
-    N --> O[Aggregate Batch Results];
-    O --> P[Determine Unmatched Controls];
-
-    P --> G;
-    G -- End Loop --> Q[Format & Save Outputs];
-
-    subgraph "JSON-Ausgaben"
-        Q --> Q1[bausteine_zielobjekt.json];
-        Q --> Q2[zielobjekt_controls.json];
-        Q --> Q3[controls_anforderungen.json];
-    end
-
-    Q --> C;
-```
-
-#### **3.2.2 Detaillierter Prozessablauf**
-
-1.  **Daten laden und parsen:**
-    *   `Zielobjekte.csv` wird eingelesen, um eine hierarchische Karte (`zielobjekte_map`) zu erstellen, die `ChildOfUUID`-Beziehungen abbildet.
-    *   `BSI_GS_OSCAL_current_2023.json` wird geparst, um `bausteine`-Objekte zu extrahieren.
-    *   `gpp_kompendium.json` wird geparst, um eine Zuordnung von `Zielobjekt`-Namen zu G++-Kontrollen sowie ein Dictionary aller G++-Kontroll-Titel zu erstellen.
-
-2.  **Hauptverarbeitungsschleife (pro Baustein):**
-    *   **Baustein-zu-Zielobjekt-Mapping:** Für jeden BSI-Baustein wird ein KI-Aufruf (`matching.match_baustein_to_zielobjekt`) gestartet, um das semantisch beste G++-Zielobjekt zu finden.
-    *   **Vererbungslogik:** `inheritance.get_all_inherited_controls` traversiert rekursiv die `ChildOfUUID`-Hierarchie und sammelt alle vererbten G++-Kontrollen.
-    *   **Batch-Verarbeitung:** BSI-Anforderungen werden in Batches (Größe: 50) aufgeteilt.
-    *   **Anforderung-zu-Kontrolle-Mapping:** Für jeden Batch wird `matching.match_bsi_controls_to_gpp_controls_batch` aufgerufen, um BSI-Anforderungen den am besten passenden G++-Kontrollen zuzuordnen.
-    *   **Ermittlung ungenutzter Kontrollen:** Die Differenz zwischen allen vererbten G++-Kontrollen und den tatsächlich zugeordneten wird als `unmatched_controls` für die Baustein-Zielobjekt-Kombination erfasst.
-
-3.  **Speichern der Ergebnisse:** Die gesammelten Daten werden in drei JSON-Dateien geschrieben: `bausteine_zielobjekt.json`, `zielobjekt_controls.json` und `controls_anforderungen.json`.
+Diese Stage führt die detaillierte 1:1-Zuordnung von jeder einzelnen BSI Anforderung zu einer G++ Kontrolle durch.
 
 ### **3.3 Fehlerbehandlung und Logging**
 
@@ -159,7 +96,8 @@ Die Pipeline kann entweder als vollständiger Durchlauf oder pro einzelner Stage
 ./scripts/run_local.sh
 
 # Ausführung einer einzelnen, spezifischen Stage
-./scripts/run_local.sh stage_strip
+./scripts/run_local.sh stage_gpp
+./scripts/run_local.sh stage_match_bausteine
 ```
 
 ## **4.0 OSCAL Implementierung und Struktur**

@@ -27,7 +27,7 @@ GPP_KOMPENDIUM_JSON_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek
 ALLOWED_MAIN_GROUPS = ["SYS", "INF", "IND", "APP", "NET"]
 
 # --- Output to Stand der Technik Submodule File Paths ---
-SDT_OUTPUT_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Bausteine-Zielobjekte")
+SDT_OUTPUT_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Zielobjekt-Bausteine")
 SDT_HELPER_OUTPUT_DIR = os.path.join(SDT_OUTPUT_DIR, "hilfsdateien")
 BAUSTEINE_ZIELOBJEKTE_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "bausteine_zielobjekt.json")
 CONTROLS_ANFORDERUNGEN_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "controls_anforderungen.json")
