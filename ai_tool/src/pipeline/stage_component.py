@@ -84,9 +84,9 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
             guidance = ""
             for part in gpp_control_data.get("parts", []):
                 if part.get("name") == "prose":
-                    prose = part.get("prose", "").strip()
+                    prose = part.get("prose", "").strip().replace("\n", "<BR>")
                 elif part.get("name") == "guidance":
-                    guidance = part.get("prose", "").strip()
+                    guidance = part.get("prose", "").strip().replace("\n", "<BR>")
 
             description = f"{prose}BR{guidance}" if prose and guidance else prose or guidance
 
@@ -96,14 +96,14 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
                     statement_props = []
                     for sub_part in part.get("parts", []):
                         statement_props.append({
-                            "name": sub_part.get("name", "").strip(),
-                            "value": sub_part.get("prose", "").strip()
+                            "name": sub_part.get("name", "").strip().replace("\n", "<BR>"),
+                            "value": sub_part.get("prose", "").strip().replace("\n", "<BR>")
                         })
 
                     statements.append({
                         "statement-id": part.get("id", str(uuid.uuid4())),
                         "uuid": str(uuid.uuid4()),
-                        "description": part.get("title", "No description available.").strip(),
+                        "description": part.get("title", "No description available.").strip().replace("\n", "<BR>"),
                         "props": statement_props
                     })
 
@@ -124,8 +124,8 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
         prose = part.get("prose")
         if title and prose:
             component_props.append({
-                "name": title.strip(),
-                "value": prose.strip()
+                "name": title.strip().replace("\n", "<BR>"),
+                "value": prose.strip().replace("\n", "<BR>")
             })
 
     component_definition = {
