@@ -10,7 +10,7 @@
       "additionalProperties": {
         "type": "string",
         "description": "Any valid control or requirement ID.",
-        "pattern": "^[A-Z]{2,}(\\.\\d{1,2}){1,3}(\\.A\\d{1,2})?$"
+        "pattern": "^[A-Z]{2,}(\\.\\d+)+(?:\\.A\\d+)?$"
       }
     },
     "unmapped_gpp": {
