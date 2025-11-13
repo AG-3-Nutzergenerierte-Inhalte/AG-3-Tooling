@@ -46,7 +46,7 @@ def get_component_type(baustein_id: str) -> str:
 
 def generate_detailed_component(baustein_id: str, baustein_title: str, profile_path: str, mapping: dict, bsi_catalog: dict, gpp_catalog: dict, output_dir: str):
     """Generates the detailed, user-defined component file."""
-    sanitized_name = sanitize_filename(f"{baustein_id}_{baustein_title}")
+    sanitized_name = sanitize_filename(f"{baustein_title}_{baustein_id}_{baustein_title}")
 
     if not os.path.exists(profile_path):
         logger.warning(f"Profile not found for {baustein_id} at {profile_path}. Skipping detailed component.")
@@ -162,7 +162,7 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
 
 def generate_minimal_component(baustein_id: str, baustein_title: str, profile_path: str, output_dir: str):
     """Generates the minimal component file that only imports the profile."""
-    sanitized_name = sanitize_filename(f"{baustein_id}_{baustein_title}")
+    sanitized_name = sanitize_filename(f"{baustein_title}_{baustein_id}_{baustein_title}")
 
     if not os.path.exists(profile_path):
         logger.warning(f"Profile not found for {baustein_id} at {profile_path}. Skipping minimal component.")
