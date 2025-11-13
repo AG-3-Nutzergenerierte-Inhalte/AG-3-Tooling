@@ -11,14 +11,14 @@ import uuid
 import logging
 from datetime import datetime, timezone
 
-from ai_tool.src.constants import (
+from constants import (
     ZIELOBJEKT_CONTROLS_JSON_PATH,
     SDT_OUTPUT_DIR,
     ZIELOBJEKTE_CSV_PATH,
     OSCAL_VERSION
 )
-from ai_tool.src.utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
-from ai_tool.src.utils.text_utils import sanitize_filename
+from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
+from utils.text_utils import sanitize_filename
 
 # Configure logging
 logger = logging.getLogger(__name__)

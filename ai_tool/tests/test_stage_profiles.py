@@ -7,8 +7,8 @@ import json
 import unittest
 from unittest.mock import patch, mock_open, MagicMock
 
-from ai_tool.src.pipeline import stage_profiles
-from ai_tool.src.constants import SDT_OUTPUT_DIR
+from pipeline import stage_profiles
+from constants import SDT_OUTPUT_DIR
 
 class TestStageProfiles(unittest.TestCase):
     """
@@ -32,10 +32,10 @@ class TestStageProfiles(unittest.TestCase):
             {"UUID": "d2a23b62-9c66-4f72-98e2-17518d5dbe0f", "Zielobjekt": "Cloud-Dienste"}
         ]
 
-    @patch('ai_tool.src.pipeline.stage_profiles.create_dir_if_not_exists')
-    @patch('ai_tool.src.pipeline.stage_profiles.read_json_file')
-    @patch('ai_tool.src.pipeline.stage_profiles.read_csv_file')
-    @patch('ai_tool.src.pipeline.stage_profiles.write_json_file')
+    @patch('pipeline.stage_profiles.create_dir_if_not_exists')
+    @patch('pipeline.stage_profiles.read_json_file')
+    @patch('pipeline.stage_profiles.read_csv_file')
+    @patch('pipeline.stage_profiles.write_json_file')
     @patch('logging.Logger.warning')
     def test_run_stage_profiles(self, mock_log_warning, mock_write_json, mock_read_csv, mock_read_json, mock_create_dir):
         """
