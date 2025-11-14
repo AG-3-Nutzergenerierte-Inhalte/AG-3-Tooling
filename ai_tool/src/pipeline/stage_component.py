@@ -227,7 +227,7 @@ def run_stage_component():
         raise
 
     try:
-        baustein_zielobjekt_map = read_json_file(BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
+        baustein_zielobjekt_map = read_json_file(BAUSTEIN_ZIELOBJEKT_JSON_PATH)
         controls_anforderungen = read_json_file(CONTROLS_ANFORDERUNGEN_JSON_PATH)
         prozessbausteine_mapping = read_json_file(PROZZESSBAUSTEINE_CONTROLS_JSON_PATH)
         bsi_catalog = read_json_file(BSI_2023_JSON_PATH)
@@ -235,7 +235,7 @@ def run_stage_component():
 
         # Check each loaded data file individually to provide a specific error message.
         data_to_check = {
-            BAUSTEINE_ZIELOBJEKTE_JSON_PATH: baustein_zielobjekt_map,
+            BAUSTEIN_ZIELOBJEKT_JSON_PATH: baustein_zielobjekt_map,
             CONTROLS_ANFORDERUNGEN_JSON_PATH: controls_anforderungen,
             PROZZESSBAUSTEINE_CONTROLS_JSON_PATH: prozessbausteine_mapping,
             BSI_2023_JSON_PATH: bsi_catalog,

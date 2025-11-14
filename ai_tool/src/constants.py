@@ -29,7 +29,7 @@ ALLOWED_MAIN_GROUPS = ["SYS", "INF", "IND", "APP", "NET"]
 # --- Output to Stand der Technik Submodule File Paths ---
 SDT_OUTPUT_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte")
 SDT_HELPER_OUTPUT_DIR = os.path.join(SDT_OUTPUT_DIR, "hilfsdateien")
-BAUSTEINE_ZIELOBJEKTE_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "bausteine_zielobjekt.json")
+BAUSTEIN_ZIELOBJEKT_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "baustein_zielobjekt.json")
 CONTROLS_ANFORDERUNGEN_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "controls_anforderungen.json")
 ZIELOBJEKT_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "zielobjekt_controls.json")
 PROZZESSBAUSTEINE_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "prozessbausteine_mapping.json")
@@ -66,7 +66,7 @@ API_MAX_OUTPUT_TOKEN = 65536
 
 # --- Logging ---
 LOG_LEVEL_TEST = "DEBUG"
-LOG_LEVEL_PRODUCTION = "INFO"
+LOG_LEVEL_PRODUCTION = "DEBUG"
 THIRD_PARTY_LOG_LEVEL_PRODUCTION = "WARNING"
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 

@@ -32,7 +32,7 @@ class TestStageMatching(unittest.TestCase):
 
         # --- Mock Data Loading ---
         mock_data_loader.load_json_file.side_effect = lambda path: {
-            BAUSTEINE_ZIELOBJEKTE_JSON_PATH: {"bausteine_zielobjekte_map": {"APP.1.1": "Z.1"}},
+            BAUSTEIN_ZIELOBJEKT_JSON_PATH: {"bausteine_zielobjekte_map": {"APP.1.1": "Z.1"}},
             ZIELOBJEKT_CONTROLS_JSON_PATH: {"zielobjekt_controls_map": {"Z.1": ["GPP.1", "GPP.2"]}},
             MATCHING_SCHEMA_PATH: {"$schema": "http://json-schema.org/draft-07/schema#"},
             PROMPT_CONFIG_PATH: {"anforderung_to_kontrolle_1_1_prompt": "test prompt"},

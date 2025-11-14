@@ -96,7 +96,7 @@ async def run_stage_match_bausteine() -> None:
 
     # Idempotency Check (Rule 5.2.7)
     if (
-        os.path.exists(BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
+        os.path.exists(BAUSTEIN_ZIELOBJEKT_JSON_PATH)
         and not app_config.overwrite_temp_files
     ):
         logger.info(
@@ -163,9 +163,9 @@ async def run_stage_match_bausteine() -> None:
     # Save the results
     output_data = {"baustein_zielobjekt_map": final_map}
     logger.debug(
-        f"Saving the final Baustein-Zielobjekt map to {BAUSTEINE_ZIELOBJEKTE_JSON_PATH}..."
+        f"Saving the final Baustein-Zielobjekt map to {BAUSTEIN_ZIELOBJEKT_JSON_PATH}..."
     )
-    save_json_file(output_data, BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
+    save_json_file(output_data, BAUSTEIN_ZIELOBJEKT_JSON_PATH)
 
     logger.info(
         f"Stage_match_bausteine finished. Matched {len(final_map)} Bausteine."

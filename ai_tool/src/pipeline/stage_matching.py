@@ -183,8 +183,8 @@ async def run_stage_matching() -> None:
         prompt_config = data_loader.load_json_file(PROMPT_CONFIG_PATH)
         matching_schema = data_loader.load_json_file(MATCHING_SCHEMA_PATH)
 
-        bausteine_zielobjekte_data = data_loader.load_json_file(
-            BAUSTEINE_ZIELOBJEKTE_JSON_PATH
+        baustein_zielobjekt_data = data_loader.load_json_file(
+            BAUSTEIN_ZIELOBJEKT_JSON_PATH
         )
         zielobjekt_controls_data = data_loader.load_json_file(
             ZIELOBJEKT_CONTROLS_JSON_PATH
@@ -197,7 +197,7 @@ async def run_stage_matching() -> None:
         loaded_data_checks = {
             PROMPT_CONFIG_PATH: prompt_config,
             MATCHING_SCHEMA_PATH: matching_schema,
-            BAUSTEINE_ZIELOBJEKTE_JSON_PATH: bausteine_zielobjekte_data,
+            BAUSTEIN_ZIELOBJEKT_JSON_PATH: baustein_zielobjekt_data,
             ZIELOBJEKT_CONTROLS_JSON_PATH: zielobjekt_controls_data,
             ZIELOBJEKTE_CSV_PATH: zielobjekte_data,
             BSI_2023_JSON_PATH: bsi_data,
@@ -208,9 +208,20 @@ async def run_stage_matching() -> None:
                 sys.exit(1)
 
         # Now that we've validated the files, we can safely extract the nested data.
-        bausteine_zielobjekte_map = bausteine_zielobjekte_data.get("bausteine_zielobjekte_map", {})
+        baustein_zielobjekt_map = baustein_zielobjekt_data.get("baustein_zielobjekt_map", {})
+        if not baustein_zielobjekt_map:
+            logger.error(f"The 'baustein_zielobjekt_map' key in {BAUSTEIN_ZIELOBJEKT_JSON_PATH} is empty. No Baustein-Zielobjekt mappings found.")
+            sys.exit(1)
+
         zielobjekt_controls_map = zielobjekt_controls_data.get("zielobjekt_controls_map", {})
+        if not zielobjekt_controls_map:
+            logger.error(f"The 'zielobjekt_controls_map' key in {ZIELOBJEKT_CONTROLS_JSON_PATH} is empty. No Zielobjekt-Control mappings found.")
+            sys.exit(1)
+
         baustein_anforderungen_map = data_parser.get_anforderungen_for_bausteine(bsi_data)
+        if not baustein_anforderungen_map:
+            logger.error(f"Could not parse any 'Anforderungen' from {BSI_2023_JSON_PATH}. The resulting map is empty.")
+            sys.exit(1)
 
         gpp_stripped_md = data_loader.load_text_file(GPP_STRIPPED_MD_PATH)
         gpp_stripped_isms_md = data_loader.load_text_file(GPP_STRIPPED_ISMS_MD_PATH)
@@ -237,11 +248,15 @@ async def run_stage_matching() -> None:
     final_output: Dict[str, Any] = {}
     semaphore = asyncio.Semaphore(app_config.max_concurrent_ai_requests)
 
-    pairs_to_process = (
-        list(bausteine_zielobjekte_map.items())[:3]
-        if app_config.is_test_mode
-        else bausteine_zielobjekte_map.items()
-    )
+    # Determine the pairs to process based on test mode
+    all_pairs = list(baustein_zielobjekt_map.items())
+    if not all_pairs:
+        logger.critical(
+            f"The baustein-to-zielobjekt map from '{BAUSTEIN_ZIELOBJEKT_JSON_PATH}' is empty. No pairs to process. Aborting."
+        )
+        sys.exit(1)
+
+    pairs_to_process = all_pairs[:3] if app_config.is_test_mode else all_pairs
 
     tasks = [
         _process_mapping(
@@ -267,6 +282,10 @@ async def run_stage_matching() -> None:
         if result:
             zielobjekt_uuid, data = result
             final_output[zielobjekt_uuid] = data
+
+    if not final_output:
+        logger.critical("No successful AI mappings were generated after processing all pairs. The output file would be empty. Aborting stage.")
+        sys.exit(1)
 
     data_loader.save_json_file(final_output, CONTROLS_ANFORDERUNGEN_JSON_PATH)
     logger.info("Stage 'Matching' completed successfully.")
