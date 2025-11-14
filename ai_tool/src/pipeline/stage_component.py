@@ -18,7 +18,10 @@ from constants import (
     SDT_OUTPUT_DIR,
     OSCAL_COMPONENT_SCHEMA_PATH,
     OSCAL_VERSION,
-    REPO_ROOT
+    REPO_ROOT,
+    ZIELOBJEKTE_CSV_PATH,
+    SDT_COMPONENTS_GPP_DIR,
+    SDT_PROFILES_DIR
 )
 from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
 from utils.oscal_utils import validate_oscal
@@ -217,8 +220,9 @@ def run_stage_component():
     logger.info("Starting Stage: Component Definition Generation")
 
     output_dir = os.path.join(SDT_OUTPUT_DIR, "components", "DE")
-    profile_dir = os.path.join(SDT_OUTPUT_DIR, "profiles")
+    profile_dir = SDT_PROFILES_DIR
     create_dir_if_not_exists(output_dir)
+    create_dir_if_not_exists(SDT_COMPONENTS_GPP_DIR)
 
     baustein_zielobjekt_map = read_json_file(BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
     controls_anforderungen = read_json_file(CONTROLS_ANFORDERUNGEN_JSON_PATH)
@@ -272,7 +276,75 @@ def run_stage_component():
     generate_detailed_component(isms_baustein_id, isms_baustein_title, isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir)
     generate_minimal_component(isms_baustein_id, isms_baustein_title, isms_profile_path, output_dir)
 
+    generate_zielobjekt_components()
+
     logger.info("Finished Stage: Component Definition Generation")
+
+def generate_zielobjekt_components():
+    """Generates minimal component files for all Zielobjekte."""
+    logger.info("Starting generation of Zielobjekt components.")
+
+    zielobjekte_data = read_csv_file(ZIELOBJEKTE_CSV_PATH)
+    if not zielobjekte_data:
+        logger.error(f"Could not load Zielobjekte from {ZIELOBJEKTE_CSV_PATH}")
+        return
+
+    for row in zielobjekte_data:
+        zielobjekt_name = row.get('Zielobjekt')
+        if not zielobjekt_name:
+            continue
+
+        sanitized_name = sanitize_filename(zielobjekt_name)
+        profile_filename = f"{sanitized_name}_profile.json"
+        profile_path = os.path.join(SDT_PROFILES_DIR, profile_filename)
+
+        if not os.path.exists(profile_path):
+            logger.warning(f"Profile not found for {zielobjekt_name} at {profile_path}. Skipping component generation.")
+            continue
+
+        profile = read_json_file(profile_path)
+        if not profile:
+            logger.error(f"Failed to load profile for {zielobjekt_name} from {profile_path}")
+            continue
+
+        gpp_controls = profile.get("profile", {}).get("imports", [{}])[0].get("include-controls", [{}])[0].get("with-ids", [])
+
+        implemented_reqs = [{
+            "uuid": str(uuid.uuid4()),
+            "control-id": gpp_control_id,
+            "description": f"This control is implemented as defined in the profile."
+        } for gpp_control_id in gpp_controls]
+
+
+        component_definition = {
+            "component-definition": {
+                "uuid": str(uuid.uuid4()),
+                "metadata": {
+                    "title": zielobjekt_name,
+                    "last-modified": datetime.now(timezone.utc).isoformat(),
+                    "version": "1.0.0",
+                    "oscal-version": OSCAL_VERSION,
+                },
+                "components": [{
+                    "uuid": str(uuid.uuid4()),
+                    "type": "service",
+                    "title": zielobjekt_name,
+                    "description": f"This component imports the profile for {zielobjekt_name}.",
+                    "control-implementations": [{
+                        "uuid": str(uuid.uuid4()),
+                        "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"),
+                        "description": f"Imports all controls from the profile for {zielobjekt_name}.",
+                        "implemented-requirements": implemented_reqs
+                    }]
+                }]
+            }
+        }
+
+        output_filename = f"{sanitized_name}-component.json"
+        output_path = os.path.join(SDT_COMPONENTS_GPP_DIR, output_filename)
+        write_json_file(output_path, component_definition)
+        validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
+        logger.info(f"Generated component for Zielobjekt: {zielobjekt_name}")
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
