@@ -34,7 +34,7 @@ CONTROLS_ANFORDERUNGEN_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "controls
 ZIELOBJEKT_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "zielobjekt_controls.json")
 PROZZESSBAUSTEINE_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "prozessbausteine_mapping.json")
 SDT_PROFILES_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/", "profile")
-SDT_COMPONENTS_DE_DIR = os.path.join(SDT_OUTPUT_DIR, "components/DE")
+SDT_COMPONENTS_DE_DIR = os.path.join(SDT_OUTPUT_DIR, "komponenten/DE")
 SDT_COMPONENTS_GPP_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/", "komponenten")
 
 # Paths for the 'stage_strip' output files
