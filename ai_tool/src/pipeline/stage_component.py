@@ -34,9 +34,11 @@ def get_component_type(baustein_id: str) -> str:
     }
     return type_map.get(prefix, "service")
 
-def generate_detailed_component(baustein_id: str, baustein_title: str, profile_path: str, mapping: dict, bsi_catalog: dict, gpp_catalog: dict, output_dir: str):
+def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, mapping: dict, bsi_catalog: dict, gpp_catalog: dict, output_dir: str):
     """Generates the detailed, user-defined component file."""
-    sanitized_name = sanitize_filename(f"{baustein_title}_{baustein_id}_{baustein_title}")
+    sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
+    sanitized_baustein_id = sanitize_filename(baustein_id)
+    output_filename = f"{sanitized_zielobjekt_name}_{sanitized_baustein_id}-enhanced-component.json"
 
     if not os.path.exists(profile_path):
         logger.warning(f"Profile not found for {baustein_id} at {profile_path}. Skipping detailed component.")
@@ -143,16 +145,17 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, profile_p
         }
     }
 
-    output_filename = f"{sanitized_name}-benutzerdefiniert-component.json"
     output_path = os.path.join(output_dir, output_filename)
     write_json_file(output_path, component_definition)
 
     validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
 
 
-def generate_minimal_component(baustein_id: str, baustein_title: str, profile_path: str, output_dir: str):
+def generate_minimal_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, output_dir: str):
     """Generates the minimal component file that only imports the profile."""
-    sanitized_name = sanitize_filename(f"{baustein_title}_{baustein_id}_{baustein_title}")
+    sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
+    sanitized_baustein_id = sanitize_filename(baustein_id)
+    output_filename = f"{sanitized_zielobjekt_name}_{sanitized_baustein_id}-component.json"
 
     if not os.path.exists(profile_path):
         logger.warning(f"Profile not found for {baustein_id} at {profile_path}. Skipping minimal component.")
@@ -195,7 +198,6 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, profile_pa
         }
     }
 
-    output_filename = f"{sanitized_name}-component.json"
     output_path = os.path.join(output_dir, output_filename)
     write_json_file(output_path, component_definition)
 
@@ -206,7 +208,7 @@ def run_stage_component():
     """Executes the component definition generation stage."""
     logger.info("Starting Stage: Component Definition Generation")
 
-    output_dir = os.path.join(SDT_OUTPUT_DIR, "components", "DE")
+    output_dir = SDT_COMPONENTS_DE_DIR
     profile_dir = SDT_PROFILES_DIR
     create_dir_if_not_exists(output_dir)
     create_dir_if_not_exists(SDT_COMPONENTS_GPP_DIR)
@@ -257,16 +259,16 @@ def run_stage_component():
 
         mapping = controls_anforderungen.get(zielobjekt_uuid, {}).get("mapping", {})
 
-        generate_detailed_component(baustein_id, baustein_title, profile_path, mapping, bsi_catalog, gpp_catalog, output_dir)
-        generate_minimal_component(baustein_id, baustein_title, profile_path, output_dir)
+        generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, mapping, bsi_catalog, gpp_catalog, output_dir)
+        generate_minimal_component(baustein_id, baustein_title, zielobjekt_name, profile_path, output_dir)
 
     logger.info("Processing special ISMS Baustein")
     isms_baustein_id = "ISMS"
     isms_baustein_title = "ISMS"
     isms_profile_path = os.path.join(profile_dir, "isms_profile.json")
     isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {})
-    generate_detailed_component(isms_baustein_id, isms_baustein_title, isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir)
-    generate_minimal_component(isms_baustein_id, isms_baustein_title, isms_profile_path, output_dir)
+    generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir)
+    generate_minimal_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, output_dir)
 
     generate_zielobjekt_components()
 

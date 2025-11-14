@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch, mock_open, MagicMock
 
 from pipeline import stage_profiles
-from constants import SDT_OUTPUT_DIR
+from constants import SDT_PROFILES_DIR
 
 class TestStageProfiles(unittest.TestCase):
     """
@@ -19,7 +19,7 @@ class TestStageProfiles(unittest.TestCase):
         """
         Set up the test environment.
         """
-        self.output_dir = os.path.join(SDT_OUTPUT_DIR, "profiles")
+        self.output_dir = SDT_PROFILES_DIR
         self.mock_zielobjekt_controls = {
             "zielobjekt_controls_map": {
                 "efd76832-f5a1-432a-836d-c8d5c6d212cc": ["ASST.3.1", "ASST.3.1.1"],

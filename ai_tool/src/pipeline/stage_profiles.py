@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from constants import (
     ZIELOBJEKT_CONTROLS_JSON_PATH,
-    SDT_OUTPUT_DIR,
+    SDT_PROFILES_DIR,
     ZIELOBJEKTE_CSV_PATH,
     OSCAL_VERSION
 )
@@ -68,7 +68,7 @@ def run_stage_profiles():
     """
     logger.info("Starting Stage: Profile Generation")
 
-    output_dir = os.path.join(SDT_OUTPUT_DIR, "profiles")
+    output_dir = SDT_PROFILES_DIR
     create_dir_if_not_exists(output_dir)
 
     zielobjekt_controls = read_json_file(ZIELOBJEKT_CONTROLS_JSON_PATH)
