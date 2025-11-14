@@ -39,7 +39,7 @@ async def run_full_pipeline() -> None:
         # Stage 2.2: Perform high-level Baustein-to-Zielobjekt mapping.
         logger.info("--- STAGE: MATCH BAUSTEINE ---")
         logger.info("Starting: Baustein to Zielobjekt mapping.")
-        stage_match_bausteine.run_stage_match_bausteine()
+        await stage_match_bausteine.run_stage_match_bausteine()
         logger.info("Completed: Baustein to Zielobjekt mapping.")
         logger.info("--- STAGE: MATCH BAUSTEINE - COMPLETE ---")
 
