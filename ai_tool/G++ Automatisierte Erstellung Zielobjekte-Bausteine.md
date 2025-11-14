@@ -1,186 +1,264 @@
-# **Automatisierte Erstellung hybrider OSCAL-Komponentendefinitionen mittels eingeschränkter 1:1 KI-Abbildung**
+# Automatisiertes Rahmenwerk zur Erstellung hybrider OSCAL-Komponentendefinitionen mittels sequenzieller 1:1 KI-Abbildung
 
-Dieses Dokument beschreibt ein überarbeitetes Konzeptrahmenwerk für die automatisierte Erstellung von OSCAL 1.1.3 Komponentendefinitionen, welches die Migration von BSI IT-Grundschutz Edition 2023 (Ed2023) zum modernisierten Grundschutz++ (G++) erleichtern soll. Die Überarbeitung spezifiziert eine Automatisierungsstrategie, die für die Ausführung auf der Google Cloud Platform (GCP) konzipiert ist und Künstliche Intelligenz (KI) für die semantische Abbildung unter einer strikt durchgesetzten Eins-zu-Eins (1:1) Entsprechung zwischen Altanforderungen und modernen Kontrollen nutzt.
+Dieses Dokument beschreibt das technische Konzept und die Implementierungsdetails eines automatisierten Pipelinesystems zur Erstellung von OSCAL 1.1.3 Komponentendefinitionen. Das System soll die Migration von BSI IT-Grundschutz Edition 2023 (Ed2023) zum modernisierten Grundschutz++ (G++) unterstützen. Es nutzt eine sequenzielle Automatisierungsstrategie, die auf Python und Google Cloud Vertex AI (Gemini) basiert, um semantische Abbildungen unter einer strikt durchgesetzten Eins-zu-Eins (1:1) Entsprechung zwischen Altanforderungen und modernen Kontrollen durchzuführen.
 
-## **1.0 Einleitung und strategischer Kontext**
+## 1.0 Einleitung und strategischer Kontext
 
-Die Entwicklung vom modulbasierten IT-Grundschutz Edition 2023 hin zur datenzentrierten, vererbungsgesteuerten Grundschutz++ Methodik stellt einen bedeutenden Wandel dar. Organisationen benötigen Mechanismen zur Migration bestehender Informationssicherheits-Managementsysteme (ISMS), wobei die Nachvollziehbarkeit zu etablierten Implementierungen gewahrt bleiben muss.
+Die Weiterentwicklung vom modulbasierten IT-Grundschutz (Ed2023) zur datenzentrierten, vererbungsgesteuerten Grundschutz++ (G++) Methodik erfordert Mechanismen zur Migration bestehender Informationssicherheits-Managementsysteme (ISMS).
 
-Dieses Rahmenwerk skizziert einen automatisierten Ansatz zur Erstellung von „Transitional Component Definitions“ (Übergangs-Komponentendefinitionen). Das Ziel ist es, einen technischen Ed2023 **„Baustein“** auf das am nächsten entsprechende G++ **„Zielobjekt“** abzubilden und anschließend jede einzelne Ed2023 **„Anforderung“** auf genau eine G++ Kontrolle abzubilden. Dieser Ansatz operiert unter der strikten Einschränkung: **N:M (Viele-zu-Viele) Beziehungen sind untersagt**.
+Dieses Rahmenwerk implementiert eine automatisierte Pipeline zur Erstellung von „Transitional Component Definitions“ (Übergangs-Komponentendefinitionen). Das Ziel ist es, einen technischen Ed2023 **„Baustein“** auf das am nächsten entsprechende G++ **„Zielobjekt“** abzubilden und anschließend jede einzelne Ed2023 **„Anforderung“** auf genau eine G++ **„Kontrolle“** innerhalb des Kontexts dieses Zielobjekts abzubilden.
 
-## **2.0 Methodik und Einschränkungen**
+## 2.0 Methodik und Einschränkungen
 
-Die Methodik ist durch starre, zur Vereinfachung der Automatisierung entwickelte Einschränkungen definiert, die die semantische Genauigkeit der resultierenden Artefakte erheblich beeinflussen.
+Die Methodik basiert auf einer Kombination aus deterministischer Datenanalyse (zur Bestimmung der Anwendbarkeit von Kontrollen) und KI-gestützter semantischer Analyse (zur Durchführung der Abbildung).
 
-### **2.1 Die 1:1 Abbildungseinschränkung**
+### 2.1 Die 1:1 Abbildungseinschränkung
 
-Das Rahmenwerk schreibt eine strikte 1:1 Abbildung an zwei kritischen Stellen vor:
+Das Rahmenwerk erzwingt eine strikte 1:1 Abbildung an zwei kritischen Stellen der Pipeline:
 
-*   **Baustein zu Zielobjekt:** Jeder technische Ed2023 Baustein (aus den Gruppen SYS, APP, INF, NET, IND) wird auf genau ein G++ Zielobjekt abgebildet.
-*   **Anforderung zu Kontrolle:** Jede Ed2023 Anforderung innerhalb eines Bausteins wird auf genau eine G++ Kontrolle abgebildet.
+1.  **Baustein zu Zielobjekt (Stage `match_bausteine`):** Jeder technische Ed2023 Baustein (definiert in `constants.ALLOWED_MAIN_GROUPS`, z.B. SYS, APP, INF, NET, IND) wird durch KI-Analyse auf genau ein G++ Zielobjekt abgebildet.
+2.  **Anforderung zu Kontrolle (Stage `matching`):** Jede Ed2023 Anforderung innerhalb eines Bausteins wird durch KI-Analyse auf genau eine G++ Kontrolle abgebildet.
 
-### **2.2 Logik zur Abbildungspriorisierung**
+**N:M (Viele-zu-Viele) Beziehungen sind im automatisierten Prozess untersagt.**
 
-Die Auswahl der entsprechenden G++ Kontrolle folgt einer definierten Optimierungslogik:
+### 2.2 Logik zur Abbildungspriorisierung und Kontextbegrenzung
 
-*   **Semantische Nähe:** Das primäre Kriterium ist die Identifizierung der „engsten Übereinstimmung“ basierend auf einer KI-gesteuerten semantischen Analyse.
-*   **Vererbung als Präferenz:** Der G++ Mechanismus der **„Vererbung“** definiert eine Basislinie von Kontrollen für ein gegebenes Zielobjekt. Falls mehrere G++ Kontrollen eine vergleichbare semantische Nähe aufweisen, wird die Kontrolle priorisiert, die bereits in der vererbten Basislinie des Zielobjekts vorhanden ist.
-*   **Globaler Geltungsbereich:** Die Abbildung ist nicht auf die vererbte Basislinie beschränkt. Wenn die engste semantische Übereinstimmung außerhalb der vererbten Menge existiert, wird diese ausgewählt.
+Die Auswahl der entsprechenden G++ Kontrolle basiert auf einer definierten Logik, die den Kontext strikt eingrenzt:
 
-### **2.3 Metadaten-Verarbeitung**
+1.  **Determinierung des Kontrollpools (Stage `gpp`):** Zuerst wird die Menge aller anwendbaren G++ Kontrollen für jedes Zielobjekt deterministisch ermittelt. Dies geschieht durch die Analyse der `target_objects`-Eigenschaften im G++ Kompendium und die rekursive Auflösung der Vererbungshierarchie gemäß `zielobjekte.csv`.
+2.  **Semantische Nähe im Kontext (Stage `matching`):** Die KI-gesteuerte Abbildung einer BSI Anforderung erfolgt ausschließlich gegen den Pool von G++ Kontrollen, der für das zuvor ausgewählte Zielobjekt (aus Stage `match_bausteine`) ermittelt wurde. Eine globale Suche über alle G++ Kontrollen findet nicht statt. Das primäre Kriterium ist die Identifizierung der „engsten semantischen Übereinstimmung“ innerhalb dieses Pools.
 
-Die Nachvollziehbarkeit zu Ed2023 wird mittels OSCAL-Eigenschaften (*props*) implementiert. Gemäß den überarbeiteten Einschränkungen werden diese Metadaten als Freitext ohne definierenden Namensraum (*ns* Attribut weggelassen) aufgenommen.
+### 2.3 Metadaten-Verarbeitung
 
-## **3.0 Pipeline-Architektur und technische Implementierung**
+Die Nachvollziehbarkeit zu Ed2023 wird in den resultierenden OSCAL-Komponentendefinitionen (Stage `component`) implementiert. Dabei werden Details der ursprünglichen BSI Anforderung (wie Titel und Beschreibungen der verschiedenen Maturitätsstufen) in die `props` und `statements` der implementierten G++ Kontrolle integriert.
 
-Die Automatisierung ist in separate, ausführbare "Stages" unterteilt, die über Kommandozeilenargumente (`--stage`) gesteuert werden. Diese Unterteilung ermöglicht eine modulare Ausführung und ein gezieltes Debugging. Zusätzlich wurde eine Orchestrierungsschicht implementiert, die alle Stages für einen vollständigen Ende-zu-Ende-Durchlauf sequenziell ausführt. Dieser Gesamtdurchlauf ist das Standardverhalten, wenn keine spezifische Stage angegeben wird.
+## 3.0 Pipeline-Architektur und technische Implementierung
 
-### **3.0.1 Orchestrierung der Gesamtpipeline**
+Die Architektur ist als modulare, mehrstufige Pipeline implementiert, die in Python geschrieben ist. Die Orchestrierung erfolgt über `src/main.py` und `src/pipeline/processing.py`. Die Pipeline kann vollständig oder in einzelnen Stages ausgeführt werden (z.B. `python src/main.py --stage stage_matching`).
 
-Die Kernlogik für den vollständigen Pipeline-Durchlauf ist in `processing.py` zentralisiert. Dieses Modul ruft jede Stage in der korrekten Reihenfolge auf und stellt sicher, dass die Datenabhängigkeiten erfüllt werden. Der Ausführungsablauf ist wie folgt:
+### 3.1 Unterstützende Infrastruktur
 
-```mermaid
-flowchart TD
-    A[Start: Full Pipeline Run] --> B(Stage: stage_strip);
-    B --> C(Stage: stage_gpp);
-    C --> D(Stage: stage_match_bausteine);
-    D --> E(Stage: stage_matching);
-    E --> F[End];
+#### 3.1.1 KI-Client (`src/clients/ai_client.py`)
+
+Der `AiClient` ist die zentrale Komponente für alle Interaktionen mit Google Vertex AI (Gemini).
+
+*   **Modell-Konfiguration:** Verwendet standardmäßig `gemini-1.5-flash`, erlaubt jedoch Overrides (z.B. `gemini-1.5-pro` für komplexere Aufgaben in `stage_matching`).
+*   **Strukturierte Ausgabe:** Nutzt `GenerationConfig` mit `response_mime_type="application/json"` und `response_schema`, um die KI zu zwingen, gültiges JSON gemäß einem definierten Schema zurückzugeben.
+*   **Asynchrone Verarbeitung:** Implementiert `generate_content_async` für parallele Anfragen.
+*   **Robuste Fehlerbehandlung:** Implementiert einen asynchronen Retry-Mechanismus mit exponentiellem Backoff (konfigurierbar über `API_MAX_RETRIES`). Es werden sowohl API-Fehler (z.B. Quota-Überschreitungen) als auch Validierungsfehler (wenn die KI kein gültiges JSON oder kein Schema-konformes JSON liefert) abgefangen und wiederholt.
+*   **Validierung:** Jede Antwort wird nach dem Empfang mittels `jsonschema.validate` gegen das erwartete Schema validiert.
+
+```python
+# src/clients/ai_client.py (Auszug aus generate_validated_json_response)
+for attempt in range(retries):
+    try:
+        # ... (API Aufruf) ...
+        response_json = self._process_response(response)
+        validate(instance=response_json, schema=json_schema)
+        return response_json
+    except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError, ValidationError) as e:
+        wait_time = 2 ** attempt
+        # ... (Logging und Wartezeit) ...
+        await asyncio.sleep(wait_time)
 ```
 
-### **3.1 Stage: `stage_strip` - Datenvorverarbeitung**
+#### 3.1.2 Konfiguration und Logging
 
-Diese vorgeschaltete Stage dient dazu, die umfangreichen JSON-Quelldateien von BSI und G++ in ein kompaktes, für Entwickler lesbares Markdown-Format zu überführen. Dies erleichtert die manuelle Analyse und das Debugging.
+*   **Konfiguration (`src/config.py`, `src/constants.py`):** Die Anwendung wird über Umgebungsvariablen konfiguriert (z.B. `GCP_PROJECT_ID`, `MAX_CONCURRENT_AI_REQUESTS`). Konstanten definieren Dateipfade, Modellnamen und Schwellenwerte.
+*   **Testmodus (`TEST="true"`):** Wenn aktiviert, wird der Logging-Level auf `DEBUG` gesetzt (`src/utils/logger.py`) und die Datenverarbeitung in den Stages auf eine kleine Teilmenge (z.B. die ersten 3 Elemente) reduziert, um schnelle Iterationen zu ermöglichen.
+*   **Idempotenz (`OVERWRITE_TEMP_FILES`):** Stages prüfen, ob ihre Ausgabedateien bereits existieren. Wenn `OVERWRITE_TEMP_FILES="false"`, wird die Stage übersprungen (implementiert in z.B. `stage_match_bausteine.py`).
 
-### **3.2 Stage: `stage_gpp` - G++ Kompendium Verarbeitung**
+### 3.2 Stage: `stage_strip` - Datenvorverarbeitung und Reduktion
 
-Diese Stage ist rein deterministisch und verantwortlich für die Verarbeitung des G++ Kompendiums. Sie erstellt eine umfassende und strukturierte Karte aller G++ Kontrollen und ihrer Beziehung zu den Zielobjekten.
+Diese Stage reduziert die umfangreichen JSON-Quelldateien in kompakte Markdown-Tabellen. Dieses Format dient später als effizienter Kontext für die KI-Modelle.
 
-**Prozess:**
+*   **Inputs:**
+    *   `BSI_GS_OSCAL_current_2023_benutzerdefinierte.json` (BSI Ed2023)
+    *   `Grundschutz++-Kompendium.json` (G++)
+*   **Prozess (G++):**
+    1.  Das G++ Kompendium wird rekursiv durchlaufen (`_process_controls_recursively`), um alle Kontrollen (auch verschachtelte) zu extrahieren.
+    2.  Für jede Kontrolle werden ID, Titel, UUID (`alt-identifier`) und eine auf 150 Zeichen gekürzte Beschreibung (`statement prose`) extrahiert.
+    3.  Die Kontrollen werden basierend auf dem Vorhandensein einer `target_objects`-Eigenschaft (`_has_target_objects`) aufgeteilt.
+*   **Prozess (BSI):**
+    1.  Das BSI Kompendium wird durchlaufen, um alle Anforderungen (Controls) zu extrahieren.
+    2.  Es werden ID, Titel und eine gekürzte Beschreibung extrahiert.
+    3.  Die Anforderungen werden basierend auf ihrer Zugehörigkeit zu den `ALLOWED_MAIN_GROUPS` (SYS, APP, NET, IND, INF) aufgeteilt.
+*   **Outputs (in `hilfsdateien/`):**
+    *   `gpp_stripped.md`: G++ Kontrollen mit `target_objects`.
+    *   `gpp_isms_stripped.md`: G++ Kontrollen ohne `target_objects` (ISMS/Prozess-bezogen).
+    *   `bsi_2023_stripped.md`: BSI Anforderungen aus den erlaubten technischen Gruppen.
+    *   `bsi_2023_stripped_ISMS.md`: BSI Anforderungen aus anderen Gruppen (z.B. ORP, ISMS).
 
-1.  **Flattening:** Das G++ Kompendium (`Grundschutz++-Kompendium.json`) wird rekursiv durchlaufen, um eine flache `target-controls-map` zu erstellen. Diese Map gruppiert alle G++ Kontrollen unter ihrem primären Zielobjekt-Namen.
-2.  **Zielobjekt-Hierarchie:** Die `zielobjekte.csv` wird eingelesen, um eine `zielobjekt-map` zu erstellen. Für jedes Zielobjekt wird die `ChildOfUUID`-Beziehung rekursiv verfolgt, um eine Liste aller übergeordneten Namen zu erstellen (`all_applicable_names`).
-3.  **Control Mapping:** Die Pipeline iteriert durch die `zielobjekt-map`. Für jedes Zielobjekt werden alle seine anwendbaren Namen (sein eigener und die seiner Eltern) verwendet, um alle relevanten Kontrollen aus der `target-controls-map` nachzuschlagen.
-4.  **Speichern:** Das Ergebnis, eine Zuordnung von jeder Zielobjekt-UUID zu einer Liste aller anwendbaren Kontroll-IDs, wird in `zielobjekt_controls.json` gespeichert.
+### 3.3 Stage: `stage_gpp` - Deterministische G++ Analyse und Vererbung
 
-### **3.3 Stage: `stage_match_bausteine` - KI-gestützte Baustein-Zuordnung**
+Diese Stage führt eine deterministische Analyse durch, um für jedes G++ Zielobjekt die exakte Menge der anwendbaren Kontrollen zu bestimmen, unter Berücksichtigung der Vererbungshierarchie.
 
-Diese Stage nutzt KI, um jeden technischen BSI Baustein dem am besten passenden G++ Zielobjekt zuzuordnen.
+*   **Inputs:**
+    *   `Grundschutz++-Kompendium.json`
+    *   `zielobjekte.csv` (Definiert die Hierarchie mittels `UUID` und `ChildOfUUID`)
+*   **Prozess:**
+    1.  **Extraktion der Kontrollen (`_create_target_controls_map`):** Das G++ Kompendium wird rekursiv durchlaufen (`_traverse_and_extract_controls`). Kontrollen werden extrahiert und in zwei Maps aufgeteilt: `target_controls` (keyed by Zielobjekt Name) und `isms_controls`.
+    2.  **Erstellung der Zielobjekt-Map (`_create_zielobjekt_map`):** Die `zielobjekte.csv` wird geladen.
+    3.  **Auflösung der Vererbung:** Für jedes Zielobjekt wird die Funktion `_get_parent_names_recursive` aufgerufen. Diese traversiert die `ChildOfUUID`-Beziehungen nach oben und sammelt die Namen aller übergeordneten Zielobjekte.
+    4.  **Zusammenführung:** Für jedes Zielobjekt (keyed by UUID) werden alle Kontrollen gesammelt, die seinem eigenen Namen oder einem seiner übergeordneten Namen in der `target_controls_map` zugeordnet sind.
+*   **Outputs:**
+    *   `zielobjekt_controls.json`: Eine Map, die für jede Zielobjekt-UUID die Liste der IDs aller anwendbaren (direkten und vererbten) G++ Kontrollen enthält. Enthält auch einen speziellen "ISMS"-Eintrag.
 
-**Prozess:**
+### 3.4 Stage: `stage_match_bausteine` - KI-gestützte Baustein-zu-Zielobjekt-Abbildung
 
-1.  **Daten laden:** BSI Bausteine (mit Prosa) und G++ Zielobjekte (mit Definitionen) werden geladen.
-2.  **KI-Matching:** Für jeden BSI Baustein wird ein asynchroner Aufruf an das KI-Modell gesendet. Der Prompt enthält den Titel und die Beschreibung des Bausteins sowie eine Liste der verfügbaren Zielobjekte mit deren Definitionen.
-3.  **Validierung und Speicherung:** Die KI gibt den Namen des am besten passenden Zielobjekts zurück. Diese Antwort wird validiert und die resultierende Zuordnung von Baustein-ID zu Zielobjekt-UUID wird in `bausteine_zielobjekt.json` gespeichert.
+Diese Stage führt die erste KI-gestützte Abbildung durch: die Zuordnung jedes technischen BSI Bausteins zu genau einem G++ Zielobjekt.
 
-### **3.4 Stage: `stage_matching` - KI-gestützte Anforderungs-Zuordnung**
+*   **Inputs:**
+    *   BSI Ed2023 JSON
+    *   `zielobjekte.csv`
+    *   `prompt_config.json`, `baustein_to_zielobjekt_schema.json`
+*   **Prozess:**
+    1.  **Datenvorbereitung:** BSI Bausteine aus den `ALLOWED_MAIN_GROUPS`, die eine Beschreibung (`usage prose`) haben, werden extrahiert (`utils.data_parser.find_bausteine_with_prose`). Die Zielobjekte und ihre Definitionen werden aus der CSV geladen.
+    2.  **Asynchrone Verarbeitung:** Der `AiClient` wird initialisiert. Ein `asyncio.Semaphore` wird verwendet, um die Parallelität zu begrenzen (`MAX_CONCURRENT_AI_REQUESTS`).
+    3.  **KI-Abbildung (`match_baustein_to_zielobjekt`):** Für jeden Baustein wird ein Prompt erstellt, der die Bausteinbeschreibung und eine Liste aller verfügbaren Zielobjekte enthält.
+    4.  Die KI (Gemini Flash) wird aufgefordert, das am besten passende Zielobjekt auszuwählen und die Antwort als validiertes JSON zurückzugeben.
+    5.  Die Ergebnisse werden gesammelt.
+*   **Outputs:**
+    *   `bausteine_zielobjekt.json`: Eine Map von BSI Baustein ID zu der UUID des am besten passenden G++ Zielobjekts.
 
-Diese Stage führt die detaillierte 1:1-Zuordnung von jeder einzelnen BSI Anforderung zu einer G++ Kontrolle durch.
+### 3.5 Stage: `stage_matching` - KI-gestützte Anforderung-zu-Kontrolle-Abbildung
 
-### **3.3 Fehlerbehandlung und Logging**
+Dies ist die komplexeste Stage der Pipeline. Sie führt die detaillierte 1:1 Abbildung zwischen BSI Anforderungen und G++ Kontrollen durch, strikt begrenzt auf den Kontext der zuvor ermittelten Baustein-Zielobjekt-Paare.
 
-Die Pipeline ist robust gegenüber transienten Fehlern bei externen API-Aufrufen und Validierungsfehlern konzipiert.
+*   **Inputs:**
+    *   Die 4 gestrippten Markdown-Dateien (aus `stage_strip`).
+    *   `bausteine_zielobjekt.json` und `zielobjekt_controls.json`.
+    *   BSI Ed2023 JSON (zur Ermittlung der Anforderungen pro Baustein).
+    *   `prompt_config.json`, `matching_schema.json`.
+*   **Prozess (`_process_mapping`):**
+    1.  Die Pipeline iteriert über jedes Paar (BSI Baustein ID, Zielobjekt UUID) aus `bausteine_zielobjekt.json`.
+    2.  **Kontext-Filterung (Entscheidender Schritt):**
+        *   Die Liste der relevanten BSI Anforderungen für den Baustein wird ermittelt.
+        *   Die Liste der anwendbaren G++ Kontrollen für das Zielobjekt wird ermittelt (aus `stage_gpp` Ergebnissen).
+        *   Die Markdown-Dateien werden gefiltert (`_filter_markdown`), sodass sie nur die relevanten BSI Anforderungen und G++ Kontrollen enthalten. Dies reduziert den Kontext für die KI erheblich.
+    3.  **KI-Abbildung:** Ein Prompt wird erstellt, der die gefilterten Markdown-Tabellen enthält und die KI anweist, eine 1:1 Abbildung durchzuführen.
+    4.  Der `AiClient` wird verwendet, wobei explizit das leistungsfähigere Modell `gemini-1.5-pro` angefordert wird (`model_override`).
+    5.  **Validierung:** Die KI-Antwort (die das Mapping sowie Listen von nicht zugeordneten Elementen enthält) wird validiert. Zusätzlich wird geprüft, ob die IDs im Mapping dem erwarteten Format entsprechen (`_validate_mapping_keys`).
+    6.  Die Ergebnisse werden asynchron gesammelt und zusammengeführt.
+*   **Outputs:**
+    *   `controls_anforderungen.json`: Eine umfassende Datei, die für jede Zielobjekt-UUID die zugehörige Baustein-ID, den Zielobjekt-Namen, das detaillierte 1:1 Mapping (`Anforderung-ID`: `Kontrolle-ID`) und Listen der nicht zugeordneten Elemente enthält.
 
-*   **Retry-Mechanismus:** Alle Aufrufe an das KI-Modell sind in eine Retry-Logik mit exponentiellem Backoff und Jitter gekapselt. Dies stellt sicher, dass vorübergehende Netzwerkprobleme oder kurzzeitige Überlastungen der API nicht zum Abbruch der gesamten Pipeline führen.
-*   **Schema-Validierung:** Die `AiClient`-Klasse validiert jede Antwort des KI-Modells strikt gegen ein vordefiniertes JSON-Schema. Schlägt die Validierung fehl (z. B. wegen eines falschen Datentyps oder einer unerwarteten Struktur), wird der Fehler protokolliert (`logging.error`), und die Verarbeitung für das betreffende Element wird übersprungen, ohne den gesamten Prozess zu beenden.
-*   **Logging:** Die Anwendung verwendet das Standard-`logging`-Modul von Python.
-    *   Im **Testmodus** (`TEST="true"`) werden detaillierte `DEBUG`-Meldungen ausgegeben, um den Kontrollfluss nachzuvollziehen.
-    *   Im **Produktionsmodus** werden `DEBUG`-Meldungen unterdrückt, und nur `INFO`-Meldungen und höhere Stufen werden angezeigt, um die Log-Ausgabe übersichtlich zu halten.
+### 3.6 Stage: `stage_profiles` - Generierung von OSCAL-Profilen
 
-### **3.4 Ausführung**
+Diese Stage generiert OSCAL-Profile für jedes Zielobjekt. Ein Profil definiert eine Auswahl von Kontrollen aus einem Katalog (hier: G++ Kompendium).
 
-Die Pipeline kann entweder als vollständiger Durchlauf oder pro einzelner Stage ausgeführt werden.
+*   **Inputs:**
+    *   `zielobjekt_controls.json` (aus `stage_gpp`).
+    *   `zielobjekte.csv`.
+*   **Prozess:**
+    1.  Die Pipeline iteriert über die Ergebnisse von `stage_gpp`.
+    2.  Für jede Zielobjekt-UUID (und den speziellen ISMS-Eintrag) wird ein OSCAL-Profil erstellt (`create_oscal_profile`).
+    3.  Das Profil importiert das G++ Kompendium (über eine GitHub-URL) und inkludiert die Liste der anwendbaren Kontroll-IDs (`include-controls` -> `with-ids`).
+    4.  Der Dateiname wird aus dem Zielobjekt-Namen abgeleitet und sanitisiert (`utils.text_utils.sanitize_filename`).
+*   **Outputs:**
+    *   `profiles/*.json`: Eine OSCAL-Profildatei für jedes Zielobjekt.
 
-```bash
-# Ausführung der gesamten Pipeline (Standardverhalten)
-./scripts/run_local.sh
+### 3.7 Stage: `stage_component` - Generierung von OSCAL-Komponentendefinitionen
 
-# Ausführung einer einzelnen, spezifischen Stage
-./scripts/run_local.sh stage_gpp
-./scripts/run_local.sh stage_match_bausteine
-```
+Diese Stage generiert die finalen OSCAL-Komponentendefinitionen. Eine Komponente beschreibt die Implementierung der Kontrollen, die in einem Profil definiert sind, und integriert die Migrationsmetadaten.
 
-## **4.0 OSCAL Implementierung und Struktur**
+*   **Inputs:**
+    *   Alle intermediären Mapping-Dateien und generierten Profile.
+    *   BSI Ed2023 JSON und G++ JSON (für Detailinformationen).
+    *   `oscal_component_schema.json`.
+*   **Prozess:**
+    1.  Die Pipeline iteriert über die Baustein-Zielobjekt-Zuordnungen.
+    2.  Für jeden Baustein wird das entsprechende Profil geladen.
+    3.  **Generierung Detaillierter Komponenten (`generate_detailed_component`):**
+        *   Es wird eine Komponente erstellt, die den Baustein repräsentiert. Der Typ (z.B. software, hardware) wird basierend auf dem Baustein-Präfix bestimmt (`get_component_type`).
+        *   Die Komponente referenziert das Profil als Quelle (`control-implementations` -> `source`).
+        *   Für jede implementierte G++ Kontrolle (`implemented-requirements`):
+            *   Die entsprechende BSI Anforderung wird über das Mapping (aus `stage_matching`) identifiziert.
+            *   Details der G++ Kontrolle (Prose, Guidance) werden extrahiert und als Beschreibung verwendet.
+            *   Details der BSI Anforderung (z.B. Beschreibungen der Maturitätsstufen) werden aus dem BSI JSON extrahiert und in die `statements` und `props` der Implementierung eingefügt.
+    4.  **Generierung Minimaler Komponenten (`generate_minimal_component`):** Eine vereinfachte Version, die nur die G++ Kontroll-IDs auflistet, ohne die BSI-Details zu integrieren.
+    5.  **Validierung:** Jede generierte Komponentendefinition wird gegen das offizielle OSCAL-Schema validiert (`utils.oscal_utils.validate_oscal`).
+*   **Outputs:**
+    *   `components/DE/*-benutzerdefiniert-component.json`: Detaillierte Komponentendefinitionen.
+    *   `components/DE/*-component.json`: Minimale Komponentendefinitionen.
 
-Die resultierenden Artefakte entsprechen dem OSCAL 1.1.3 Schema.
+## 4.0 OSCAL Implementierung und Struktur
 
-### **4.1 Struktur der Komponentendefinition**
+Die resultierenden Artefakte entsprechen dem OSCAL 1.1.3 Schema und nutzen spezifische Strukturen, um die Migration abzubilden.
 
-Die *component-definition* enthält die Metadaten und die *components*, welche die migrierten Entitäten darstellen.
+### 4.1 Struktur der Komponentendefinition
 
-***JSON Beispiel (Auszug)***:
+Die `component-definition` kapselt die migrierten Bausteine als `components`.
+
 ```json
-"component-definition" : {
-  "uuid" :  "[Generierte UUID]",
-  "metadata" : { ... },
-  "components" : [
-    {
-      "uuid" :  "[Component UUID]",
-      "type" :  "software",
-      "title" :  "Transitional Component: Server (Abgebildet von SYS.1.1)",
-      "description" :  "Eine OSCAL-Komponente, die ein Server Zielobjekt darstellt...",
-      "control-implementations" : [ ... ]
-    }
-  ]
+"component-definition": {
+    "uuid": "[Generierte UUID]",
+    "metadata": { ... },
+    "components": [{
+        "uuid": "[Component UUID]",
+        "type": "software", // Bestimmt durch get_component_type()
+        "title": "[Baustein ID] [Baustein Title]",
+        "description": "...",
+        "control-implementations": [{
+            "uuid": "[Impl UUID]",
+            // Referenz auf das generierte Profil (relative GitHub URL)
+            "source": "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/...",
+            "description": "Implementation for all controls in Baustein [Baustein ID]",
+            "implemented-requirements": [ /* Siehe 4.2 */ ]
+        }]
+    }]
 }
 ```
 
-### **4.2 Struktur der implementierten Anforderung**
+### 4.2 Struktur der implementierten Anforderung (Detailliert)
 
-Das *implemented-requirement* Objekt demonstriert die Integration der G++ Autorität und der Ed2023 Metadaten.
+Das `implemented-requirement`-Objekt in der detaillierten Komponente zeigt die Integration der G++ Kontrolle und der BSI Altdaten.
 
-***JSON Beispiel (Auszug)***:
 ```json
-"implemented-requirements" : [
-  {
-    "uuid" :  "[Generierte UUID]",
-    "control-id" :  "ARCH.2.1",
-    "props" : [
-      {
-        "name" :  "ed2023_legacy_id",
-        "value" :  "NET.1.1.A5"
-      },
-      {
-        "name" :  "ed2023_legacy_title",
-        "value" :  "Aufteilung des Netzes in Segmente"
-      }
+"implemented-requirements": [{
+    "uuid": "[Req UUID]",
+    "control-id": "[G++ Control ID]", // z.B. ARCH.2.1
+    "description": "[G++ Control Prose und Guidance]",
+    // Eigenschaften der ursprünglichen BSI Anforderung
+    "props": [
+        // z.B. BSI alt-identifier
     ],
-    "remarks" :  "Diese G++ Kontrolle ist der designierte 1:1 Nachfolger..."
-  }
-]
+    // Details der BSI Maturitätsstufen
+    "statements": [{
+        "statement-id": "[BSI Statement ID]",
+        "uuid": "[Generierte UUID]",
+        "description": "[BSI Maturitätsstufen Titel]", // z.B. Basis-Anforderungen
+        "props": [
+            {
+                "name": "[BSI Sub-Part Name]", // z.B. statement
+                "value": "[BSI Sub-Part Prose]" // Die eigentliche Anforderung
+            }
+        ]
+    }]
+}]
 ```
 
-## **5.0 Kritische Analyse und methodische Einschränkungen**
+## 5.0 Kritische Analyse und methodische Einschränkungen
 
-Die dem Rahmenwerk auferlegten Einschränkungen bergen signifikante methodische Risiken.
+Die dem Rahmenwerk auferlegten Einschränkungen, insbesondere die strikte 1:1 Abbildung und die Kontextbegrenzung, bergen signifikante methodische Risiken.
 
-### **5.1 Inhärente semantische Verluste (Die 1:1 Einschränkung)**
+### 5.1 Inhärente semantische Verluste (Die 1:1 Einschränkung)
 
 Das Verbot von N:M Beziehungen ist die schwerwiegendste Einschränkung.
 
-*   **Verlust durch Zerlegung (*Decomposition Loss*):** Wenn eine Ed2023 Anforderung mehrere Aspekte abdeckt, die in separate G++ Kontrollen zerlegt werden, erzwingt die 1:1 Abbildung die Auswahl nur einer Kontrolle, was zu Informationsverlust führt.
-*   **Verzerrung durch Konsolidierung (*Consolidation Distortion*):** Wenn mehrere Ed2023 Anforderungen in einer G++ Kontrolle konsolidiert werden, wird die G++ Kontrolle künstlich für jede Altanforderung repliziert.
+*   **Verlust durch Zerlegung (*Decomposition Loss*):** Wenn eine Ed2023 Anforderung mehrere Aspekte abdeckt, die in separate G++ Kontrollen zerlegt werden, erzwingt die 1:1 Abbildung die Auswahl nur einer Kontrolle, was zu Lücken in der Abdeckung führt.
+*   **Verzerrung durch Konsolidierung (*Consolidation Distortion*):** Wenn mehrere Ed2023 Anforderungen in einer G++ Kontrolle konsolidiert werden, wird die G++ Kontrolle künstlich für jede Altanforderung repliziert, was die Struktur des G++ Ansatzes verzerrt.
 
-### **5.2 Kuratierungs-Aufwand und KI-Abhängigkeit**
+### 5.2 Kontextbegrenzung durch Baustein-Zuordnung
 
-Die operative Pipeline ist vollständig von der Qualität des kuratierten Crosswalks abhängig. Die Subjektivität bei der Bestimmung der „einzig besten Übereinstimmung“ macht einen erheblichen Expertenbeitrag zur Validierung erforderlich.
+Die Entscheidung, eine BSI Anforderung nur gegen den Pool von Kontrollen des *einen* ausgewählten Zielobjekts abzubilden, kann zu suboptimalen Ergebnissen führen. Wenn ein Baustein Aspekte mehrerer Zielobjekte abdeckt, wird die KI gezwungen, das "am wenigsten schlechte" Zielobjekt auszuwählen, und ignoriert potenziell besser passende Kontrollen, die anderen Zielobjekten zugeordnet sind.
 
-### **5.3 Interoperabilitätsrisiken (Metadaten ohne Namensraum)**
+### 5.3 KI-Abhängigkeit und Validierungsaufwand
 
-Die Entscheidung, formale Namensräume für Alt-Metadaten wegzulassen, reduziert die Robustheit und Interoperabilität der OSCAL-Artefakte, da automatisierte Tools den Ursprung der Metadaten nicht eindeutig bestimmen können.
+Die Qualität der Ergebnisse ist vollständig von der Fähigkeit des KI-Modells (insbesondere Gemini Pro in Stage `matching`) abhängig, die "beste" 1:1 Übereinstimmung korrekt zu identifizieren. Die Subjektivität dieser Aufgabe macht eine umfassende Validierung durch Fachexperten erforderlich, um die Zuverlässigkeit der generierten Artefakte sicherzustellen.
 
-## **6.0 Kritische Annahmen**
+## 6.0 Kritische Annahmen
 
-*   **Kuratierbarkeit:** Es wird angenommen, dass Fachexperten die KI-generierten 1:1 Abbildungen erfolgreich zu einem validierten, statischen Crosswalk kuratieren können.
-*   **Datenquellen-Integrität:** Es wird angenommen, dass das G++ Kompendium, die Zielobjekt-Definitionen und das Ed2023 JSON-Repository zugänglich, strukturell stabil und vollständig sind.
-*   **Übergangs-Nutzen:** Es ist verstanden, dass die generierten Artefakte Übergangshilfen darstellen und keine definitive, langfristige Implementierungsstrategie repräsentieren.
-```
-
-### Explain Your Reasoning
-
-The documentation was updated to reflect the new reality of the application's execution flow. My changes were guided by the principles of clarity and accuracy.
-
-*   **Internal Refinement (Adversarial Synthesis):** I identified that the previous documentation was now misleading, as it only described the single-stage execution. To correct this, I didn't just add a sentence; I restructured the relevant section (`3.0`) to introduce the concept of the full pipeline run first, as it is now the default behavior.
-*   **Visual Communication:** A new, high-level Mermaid diagram was added to visually represent the end-to-end flow. This makes the overall process much easier to understand at a glance than text alone.
-*   **Clarity and Organization:** Instead of leaving execution examples scattered in different subsections, I created a new, dedicated `3.4 Ausführung` section. This centralizes the "how-to" information, making the document more user-friendly and easier to maintain. I removed the old, redundant execution example from the `stage_strip` section to avoid confusion.
-*   **Transparency:** The changes explicitly state that the full run is the *default* behavior, and that the single-stage run is an option for modular execution and debugging. This transparently communicates the new architecture to any developer or user reading the document.
+*   **Datenquellen-Integrität:** Es wird angenommen, dass das G++ Kompendium, die Zielobjekt-Definitionen (CSV) und das Ed2023 JSON-Repository zugänglich, strukturell stabil und inhaltlich korrekt sind.
+*   **Stabilität der KI-Modelle:** Es wird angenommen, dass die Vertex AI Services verfügbar sind und konsistente Ergebnisse liefern.
+*   **Übergangs-Nutzen:** Es ist verstanden, dass die generierten Artefakte Übergangshilfen darstellen und keine definitive, langfristige Implementierung der G++ Methodik repräsentieren.

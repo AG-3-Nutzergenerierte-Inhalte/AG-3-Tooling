@@ -27,14 +27,15 @@ GPP_KOMPENDIUM_JSON_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek
 ALLOWED_MAIN_GROUPS = ["SYS", "INF", "IND", "APP", "NET"]
 
 # --- Output to Stand der Technik Submodule File Paths ---
-SDT_OUTPUT_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Zielobjekt-Bausteine")
+SDT_OUTPUT_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte")
 SDT_HELPER_OUTPUT_DIR = os.path.join(SDT_OUTPUT_DIR, "hilfsdateien")
 BAUSTEINE_ZIELOBJEKTE_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "bausteine_zielobjekt.json")
 CONTROLS_ANFORDERUNGEN_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "controls_anforderungen.json")
 ZIELOBJEKT_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "zielobjekt_controls.json")
 PROZZESSBAUSTEINE_CONTROLS_JSON_PATH = os.path.join(SDT_HELPER_OUTPUT_DIR, "prozessbausteine_mapping.json")
-SDT_PROFILES_DIR = os.path.join(SDT_OUTPUT_DIR, "profiles")
+SDT_PROFILES_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/", "profile")
 SDT_COMPONENTS_DE_DIR = os.path.join(SDT_OUTPUT_DIR, "components/DE")
+SDT_COMPONENTS_GPP_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/", "komponenten")
 
 # Paths for the 'stage_strip' output files
 
