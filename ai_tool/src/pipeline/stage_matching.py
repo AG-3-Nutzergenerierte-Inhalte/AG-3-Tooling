@@ -7,6 +7,7 @@ IT-Grundschutz Edition 2023 "Anforderungen" and G++ "Controls" using an AI model
 
 import logging
 import os
+import sys
 import asyncio
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -116,7 +117,10 @@ async def _process_mapping(
         logger.warning(f"No G++ controls found for Zielobjekt {zielobjekt_uuid}. Skipping.")
         return None
 
-    gpp_source_md = gpp_stripped_isms_md if baustein_id.startswith("ISMS") else gpp_stripped_md
+    # Technical Bausteine are mapped against technical G++ controls.
+    # Process Bausteine (ISMS, ORP, etc.) are mapped against ISMS G++ controls.
+    baustein_main_group = baustein_id.split('.')[0]
+    gpp_source_md = gpp_stripped_md if baustein_main_group in ALLOWED_MAIN_GROUPS else gpp_stripped_isms_md
 
     anforderung_ids = baustein_anforderungen_map.get(baustein_id, [])
     if not anforderung_ids:
@@ -174,24 +178,61 @@ async def run_stage_matching() -> None:
         logger.info("Output file already exists and OVERWRITE_TEMP_FILES is false. Skipping Matching Stage.")
         return
 
-    ai_client = AiClient(app_config)
-    prompt_config = data_loader.load_json_file(PROMPT_CONFIG_PATH)
-    matching_schema = data_loader.load_json_file(MATCHING_SCHEMA_PATH)
+    try:
+        ai_client = AiClient(app_config)
+        prompt_config = data_loader.load_json_file(PROMPT_CONFIG_PATH)
+        matching_schema = data_loader.load_json_file(MATCHING_SCHEMA_PATH)
 
-    bausteine_zielobjekte_map = data_loader.load_json_file(
-        BAUSTEINE_ZIELOBJEKTE_JSON_PATH
-    ).get("bausteine_zielobjekte_map", {})
-    zielobjekt_controls_map = data_loader.load_json_file(
-        ZIELOBJEKT_CONTROLS_JSON_PATH
-    ).get("zielobjekt_controls_map", {})
-    zielobjekte_data = data_loader.load_zielobjekte_csv(ZIELOBJEKTE_CSV_PATH)
-    zielobjekte_hierarchy = data_parser.parse_zielobjekte_hierarchy(zielobjekte_data)
-    bsi_data = data_loader.load_json_file(BSI_2023_JSON_PATH)
-    baustein_anforderungen_map = data_parser.get_anforderungen_for_bausteine(bsi_data)
+        bausteine_zielobjekte_data = data_loader.load_json_file(
+            BAUSTEINE_ZIELOBJEKTE_JSON_PATH
+        )
+        zielobjekt_controls_data = data_loader.load_json_file(
+            ZIELOBJEKT_CONTROLS_JSON_PATH
+        )
+        zielobjekte_data = data_loader.load_zielobjekte_csv(ZIELOBJEKTE_CSV_PATH)
+        zielobjekte_hierarchy = data_parser.parse_zielobjekte_hierarchy(zielobjekte_data)
+        bsi_data = data_loader.load_json_file(BSI_2023_JSON_PATH)
 
-    gpp_stripped_md = data_loader.load_text_file(GPP_STRIPPED_MD_PATH)
-    gpp_stripped_isms_md = data_loader.load_text_file(GPP_STRIPPED_ISMS_MD_PATH)
-    bsi_stripped_md = data_loader.load_text_file(BSI_STRIPPED_MD_PATH)
+        # Validate that all essential data was loaded before parsing
+        loaded_data_checks = {
+            PROMPT_CONFIG_PATH: prompt_config,
+            MATCHING_SCHEMA_PATH: matching_schema,
+            BAUSTEINE_ZIELOBJEKTE_JSON_PATH: bausteine_zielobjekte_data,
+            ZIELOBJEKT_CONTROLS_JSON_PATH: zielobjekt_controls_data,
+            ZIELOBJEKTE_CSV_PATH: zielobjekte_data,
+            BSI_2023_JSON_PATH: bsi_data,
+        }
+        for path, data in loaded_data_checks.items():
+            if not data:
+                logger.error(f"Essential data file is empty or failed to load: {path}")
+                sys.exit(1)
+
+        # Now that we've validated the files, we can safely extract the nested data.
+        bausteine_zielobjekte_map = bausteine_zielobjekte_data.get("bausteine_zielobjekte_map", {})
+        zielobjekt_controls_map = zielobjekt_controls_data.get("zielobjekt_controls_map", {})
+        baustein_anforderungen_map = data_parser.get_anforderungen_for_bausteine(bsi_data)
+
+        gpp_stripped_md = data_loader.load_text_file(GPP_STRIPPED_MD_PATH)
+        gpp_stripped_isms_md = data_loader.load_text_file(GPP_STRIPPED_ISMS_MD_PATH)
+        bsi_stripped_md = data_loader.load_text_file(BSI_STRIPPED_MD_PATH)
+
+        # Validate that all essential data was loaded
+        text_file_checks = {
+            GPP_STRIPPED_MD_PATH: gpp_stripped_md,
+            GPP_STRIPPED_ISMS_MD_PATH: gpp_stripped_isms_md,
+            BSI_STRIPPED_MD_PATH: bsi_stripped_md,
+        }
+        for path, data in text_file_checks.items():
+            if not data:
+                logger.error(f"Essential data file is empty or failed to load: {path}")
+                sys.exit(1)
+
+    except (FileNotFoundError, IOError, KeyError) as e:
+        logger.error(f"Failed to load required data for matching stage: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during data loading: {e}")
+        sys.exit(1)
 
     final_output: Dict[str, Any] = {}
     semaphore = asyncio.Semaphore(app_config.max_concurrent_ai_requests)
