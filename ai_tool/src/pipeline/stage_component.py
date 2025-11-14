@@ -9,20 +9,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 
-from constants import (
-    BAUSTEINE_ZIELOBJEKTE_JSON_PATH,
-    CONTROLS_ANFORDERUNGEN_JSON_PATH,
-    PROZZESSBAUSTEINE_CONTROLS_JSON_PATH,
-    BSI_2023_JSON_PATH,
-    GPP_KOMPENDIUM_JSON_PATH,
-    SDT_OUTPUT_DIR,
-    OSCAL_COMPONENT_SCHEMA_PATH,
-    OSCAL_VERSION,
-    REPO_ROOT,
-    ZIELOBJEKTE_CSV_PATH,
-    SDT_COMPONENTS_GPP_DIR,
-    SDT_PROFILES_DIR
-)
+from constants import *
 from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
 from utils.oscal_utils import validate_oscal
 from utils.text_utils import sanitize_filename
@@ -224,13 +211,19 @@ def run_stage_component():
     create_dir_if_not_exists(output_dir)
     create_dir_if_not_exists(SDT_COMPONENTS_GPP_DIR)
 
+    zielobjekte_data = read_csv_file(ZIELOBJEKTE_CSV_PATH)
+    if not zielobjekte_data:
+        logger.error(f"Could not load Zielobjekte from {ZIELOBJEKTE_CSV_PATH}")
+        return
+    zielobjekt_name_map = {row['UUID'].strip(): row['Zielobjekt'].strip() for row in zielobjekte_data if 'UUID' in row and 'Zielobjekt' in row}
+
     baustein_zielobjekt_map = read_json_file(BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
     controls_anforderungen = read_json_file(CONTROLS_ANFORDERUNGEN_JSON_PATH)
     prozessbausteine_mapping = read_json_file(PROZZESSBAUSTEINE_CONTROLS_JSON_PATH)
     bsi_catalog = read_json_file(BSI_2023_JSON_PATH)
     gpp_catalog = read_json_file(GPP_KOMPENDIUM_JSON_PATH)
 
-    if not all([baustein_zielobjekt_map, controls_anforderungen, prozessbausteine_mapping, bsi_catalog, gpp_catalog]):
+    if not all([zielobjekt_name_map, baustein_zielobjekt_map, controls_anforderungen, prozessbausteine_mapping, bsi_catalog, gpp_catalog]):
         logger.error("Failed to load one or more required data files. Aborting.")
         return
 
@@ -239,27 +232,26 @@ def run_stage_component():
         for value in controls_anforderungen.values() if 'baustein_id' in value and 'zielobjekt_name' in value
     }
 
-    # Create a fallback lookup for titles from the BSI catalog
     bsi_baustein_title_lookup = {}
     for group in bsi_catalog.get("catalog", {}).get("groups", []):
         for baustein in group.get("groups", []):
             if baustein.get("id") and baustein.get("title"):
                 bsi_baustein_title_lookup[baustein["id"]] = baustein["title"]
 
-
     for baustein_id, zielobjekt_uuid in baustein_zielobjekt_map.get("baustein_zielobjekt_map", {}).items():
         logger.info(f"Processing Baustein: {baustein_id}")
 
-        # Try to get title from the primary source, then fall back to BSI catalog
-        baustein_title = baustein_titles.get(baustein_id)
-        if not baustein_title:
-            baustein_title = bsi_baustein_title_lookup.get(baustein_id)
-
-        if not baustein_title:
-            logger.warning(f"No title found for Baustein ID {baustein_id} in either controls_anforderungen.json or BSI catalog. Skipping.")
+        zielobjekt_name = zielobjekt_name_map.get(zielobjekt_uuid)
+        if not zielobjekt_name:
+            logger.warning(f"No name found for Zielobjekt UUID {zielobjekt_uuid} (Baustein {baustein_id}). Skipping.")
             continue
 
-        sanitized_zielobjekt_name = sanitize_filename(baustein_title)
+        baustein_title = baustein_titles.get(baustein_id) or bsi_baustein_title_lookup.get(baustein_id)
+        if not baustein_title:
+            logger.warning(f"No title found for Baustein ID {baustein_id}. Using Zielobjekt name as fallback.")
+            baustein_title = zielobjekt_name
+
+        sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
         profile_filename = f"{sanitized_zielobjekt_name}_profile.json"
         profile_path = os.path.join(profile_dir, profile_filename)
 
