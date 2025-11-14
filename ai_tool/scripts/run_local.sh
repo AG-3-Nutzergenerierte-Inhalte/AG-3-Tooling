@@ -39,7 +39,7 @@ export BUCKET_NAME="local-dev-bucket"
 export AI_ENDPOINT_ID="local-dev-endpoint"
 export SOURCE_PREFIX="input"
 export OUTPUT_PREFIX="output"
-export TEST="false"
+export TEST="true"
 export OVERWRITE_TEMP_FILES="true"
 
 # Ensure that Python output is unbuffered, so logs appear immediately.

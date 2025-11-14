@@ -210,24 +210,32 @@ def run_stage_component():
 
     output_dir = SDT_COMPONENTS_DE_DIR
     profile_dir = SDT_PROFILES_DIR
-    create_dir_if_not_exists(output_dir)
-    create_dir_if_not_exists(SDT_COMPONENTS_GPP_DIR)
+    try:
+        create_dir_if_not_exists(output_dir)
+        create_dir_if_not_exists(SDT_COMPONENTS_GPP_DIR)
+    except OSError as e:
+        logger.critical(f"Failed to create output directories: {e}", exc_info=True)
+        raise
 
-    zielobjekte_data = read_csv_file(ZIELOBJEKTE_CSV_PATH)
-    if not zielobjekte_data:
-        logger.error(f"Could not load Zielobjekte from {ZIELOBJEKTE_CSV_PATH}")
-        return
-    zielobjekt_name_map = {row['UUID'].strip(): row['Zielobjekt'].strip() for row in zielobjekte_data if 'UUID' in row and 'Zielobjekt' in row}
+    try:
+        zielobjekte_data = read_csv_file(ZIELOBJEKTE_CSV_PATH)
+        if not zielobjekte_data:
+            raise FileNotFoundError(f"Zielobjekte data is empty or could not be loaded from {ZIELOBJEKTE_CSV_PATH}")
+        zielobjekt_name_map = {row['UUID'].strip(): row['Zielobjekt'].strip() for row in zielobjekte_data if 'UUID' in row and 'Zielobjekt' in row}
+    except (IOError, FileNotFoundError, TypeError, KeyError) as e:
+        logger.critical(f"Failed to load or parse Zielobjekte CSV data: {e}", exc_info=True)
+        raise
 
-    baustein_zielobjekt_map = read_json_file(BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
-    controls_anforderungen = read_json_file(CONTROLS_ANFORDERUNGEN_JSON_PATH)
-    prozessbausteine_mapping = read_json_file(PROZZESSBAUSTEINE_CONTROLS_JSON_PATH)
-    bsi_catalog = read_json_file(BSI_2023_JSON_PATH)
-    gpp_catalog = read_json_file(GPP_KOMPENDIUM_JSON_PATH)
+    try:
+        baustein_zielobjekt_map = read_json_file(BAUSTEINE_ZIELOBJEKTE_JSON_PATH)
+        controls_anforderungen = read_json_file(CONTROLS_ANFORDERUNGEN_JSON_PATH)
+        prozessbausteine_mapping = read_json_file(PROZZESSBAUSTEINE_CONTROLS_JSON_PATH)
+        bsi_catalog = read_json_file(BSI_2023_JSON_PATH)
+        gpp_catalog = read_json_file(GPP_KOMPENDIUM_JSON_PATH)
 
-    if not all([zielobjekt_name_map, baustein_zielobjekt_map, controls_anforderungen, prozessbausteine_mapping, bsi_catalog, gpp_catalog]):
-        logger.error("Failed to load one or more required data files. Aborting.")
-        return
+    except (IOError, FileNotFoundError, Exception) as e:
+        logger.critical(f"Failed to load critical data for component generation: {e}", exc_info=True)
+        raise
 
     baustein_titles = {
         value['baustein_id']: value['zielobjekt_name']

@@ -23,39 +23,37 @@ async def run_full_pipeline() -> None:
     try:
         # Stage 1: Strip source files into markdown for AI context.
         logger.info("--- STAGE: STRIP ---")
-        logger.info("Starting: Pre-processing and stripping source files.")
         stage_strip.run_stage_strip()
-        logger.info("Completed: Pre-processing and stripping source files.")
         logger.info("--- STAGE: STRIP - COMPLETE ---")
 
         # Stage 2: Perform high-level Baustein-to-Zielobjekt mapping.
         # Stage 2.1: Process G++ Kompendium and create deterministic mappings.
         logger.info("--- STAGE: GPP ---")
-        logger.info("Starting: G++ Kompendium processing.")
         stage_gpp.run_stage_gpp()
-        logger.info("Completed: G++ Kompendium processing.")
         logger.info("--- STAGE: GPP - COMPLETE ---")
 
         # Stage 2.2: Perform high-level Baustein-to-Zielobjekt mapping.
         logger.info("--- STAGE: MATCH BAUSTEINE ---")
-        logger.info("Starting: Baustein to Zielobjekt mapping.")
         await stage_match_bausteine.run_stage_match_bausteine()
-        logger.info("Completed: Baustein to Zielobjekt mapping.")
         logger.info("--- STAGE: MATCH BAUSTEINE - COMPLETE ---")
 
         # Stage 3: Perform detailed Anforderung-to-Kontrolle mapping.
         logger.info("--- STAGE: MATCHING ---")
-        logger.info("Starting: Anforderung to Kontrolle 1:1 mapping.")
         await stage_matching.run_stage_matching()
-        logger.info("Completed: Anforderung to Kontrolle 1:1 mapping.")
         logger.info("--- STAGE: MATCHING - COMPLETE ---")
 
         # Stage 4: Generate OSCAL profiles for each Zielobjekt.
         logger.info("--- STAGE: PROFILES ---")
-        logger.info("Starting: Generating OSCAL profiles.")
         stage_profiles.run_stage_profiles()
-        logger.info("Completed: Generating OSCAL profiles.")
         logger.info("--- STAGE: PROFILES - COMPLETE ---")
+
+        # Stage 5: Generate OSCAL components  for each Zielobjekt.
+        logger.info("--- STAGE: COMPONENTS ---")
+        logger.info("Starting: Generating OSCAL components.")
+        stage_component.run_stage_component()
+        logger.info("--- STAGE: COMPONENTS - COMPLETE ---")
+
+
 
     except Exception as e:
         logger.critical("A critical error occurred during the full pipeline execution.", exc_info=True)
