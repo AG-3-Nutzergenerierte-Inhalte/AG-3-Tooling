@@ -17,7 +17,7 @@ class TestStageMatching(unittest.TestCase):
     ):
         # --- Mock AppConfig ---
         mock_config = AppConfig()
-        mock_config.is_test_mode = False
+        mock_config.is_test_mode = True
 
         # --- Mock AI Client ---
         mock_ai_client = MagicMock()
