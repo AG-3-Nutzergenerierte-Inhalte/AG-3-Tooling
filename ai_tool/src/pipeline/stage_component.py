@@ -3,7 +3,7 @@ Pipeline Stage: Component Definition Generation
 
 This stage generates OSCAL Component Definition files for each Baustein.
 """
-
+import sys
 import os
 import uuid
 import logging
@@ -233,9 +233,20 @@ def run_stage_component():
         bsi_catalog = read_json_file(BSI_2023_JSON_PATH)
         gpp_catalog = read_json_file(GPP_KOMPENDIUM_JSON_PATH)
 
+        # Check each loaded data file individually to provide a specific error message.
+        data_to_check = {
+            BAUSTEINE_ZIELOBJEKTE_JSON_PATH: baustein_zielobjekt_map,
+            CONTROLS_ANFORDERUNGEN_JSON_PATH: controls_anforderungen,
+            PROZZESSBAUSTEINE_CONTROLS_JSON_PATH: prozessbausteine_mapping,
+            BSI_2023_JSON_PATH: bsi_catalog,
+            GPP_KOMPENDIUM_JSON_PATH: gpp_catalog,
+        }
+        for path, data in data_to_check.items():
+            if not data:
+                raise IOError(f"Data file loaded from '{path}' is empty or could not be loaded.")
     except (IOError, FileNotFoundError, Exception) as e:
         logger.critical(f"Failed to load critical data for component generation: {e}", exc_info=True)
-        raise
+        sys.exit(1)
 
     baustein_titles = {
         value['baustein_id']: value['zielobjekt_name']
