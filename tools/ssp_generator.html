@@ -120,20 +120,22 @@
             <!-- 3. Komponenten hinzufügen -->
             <fieldset id="component-fieldset" class="space-y-4 border border-gray-300 p-4 rounded-lg hidden">
                 <legend class="text-lg font-semibold text-gray-700 px-2">3. Komponenten hinzufügen (Min. 1)</legend>
-                <p class="text-sm text-gray-500 pb-2">Wähle Komponenten aus der Liste aus und füge sie hinzu. Jede Komponente kann mehrfach hinzugefügt werden. Laut Schema ist min. 1 Komponente erforderlich.</p>
+                <p class="text-sm text-gray-500 pb-2">Wähle eine Komponentendefinition (Quelle) und gib ihr einen eindeutigen Namen für dieses SSP (z.B. "Webserver-Prod").</p>
                 
-                <div class="flex items-center space-x-2">
-                    <select id="component-dropdown" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <!-- NEUE EINGABE-ZEILE -->
+                <div class="flex flex-col sm:flex-row items-center sm:space-x-2 space-y-2 sm:space-y-0">
+                    <select id="component-dropdown" class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                         <!-- Komponenten-Optionen werden hier per JS eingefügt -->
                         <option value="">Lade Komponenten...</option>
                     </select>
-                    <button type="button" id="add-component-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
+                    <input type="text" id="component-custom-name" class="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Eigener Name (z.B. Webserver-Prod)">
+                    <button type="button" id="add-component-btn" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
                         Hinzufügen
                     </button>
                 </div>
                 
                 <div id="added-component-list-container" class="border-t border-gray-200 pt-4 mt-4">
-                    <h4 class="text-sm font-medium text-gray-700 mb-2">Hinzugefügte Komponenten:</h4>
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Hinzugefügte Komponenten-Instanzen:</h4>
                     <ul id="added-component-list" class="space-y-1">
                         <!-- Hinzugefügte Komponenten (<li>) werden hier per JS eingefügt -->
                         <li id="no-components-placeholder" class="text-gray-500 text-sm">Noch keine Komponenten hinzugefügt.</li>
@@ -158,7 +160,7 @@
         // DOM-Elemente
         let profileListEl, componentDropdownEl, addComponentBtn, addedComponentListEl, noComponentsPlaceholder, generateBtn, loadingEl, errorEl, formEl;
         let systemNameEl, systemDescriptionEl, sspVersionEl;
-        let componentFieldsetEl; // Hinzugefügt
+        let componentFieldsetEl, componentCustomNameEl; // Erweitert
 
         /**
          * Initialisiert die Anwendung nach dem Laden des DOM.
@@ -166,8 +168,9 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Element-Referenzen holen
             profileListEl = document.getElementById('profile-list');
-            componentFieldsetEl = document.getElementById('component-fieldset'); // Hinzugefügt
+            componentFieldsetEl = document.getElementById('component-fieldset');
             componentDropdownEl = document.getElementById('component-dropdown');
+            componentCustomNameEl = document.getElementById('component-custom-name'); // NEU
             addComponentBtn = document.getElementById('add-component-btn');
             addedComponentListEl = document.getElementById('added-component-list');
             noComponentsPlaceholder = document.getElementById('no-components-placeholder');
@@ -182,9 +185,9 @@
 
             // Event Listener
             generateBtn.addEventListener('click', generateSSP);
-            profileListEl.addEventListener('change', handleProfileChange); // Hinzugefügt
-            addComponentBtn.addEventListener('click', addComponentToList); // Hinzugefügt
-            addedComponentListEl.addEventListener('click', handleAddedComponentListClick); // Hinzugefügt
+            profileListEl.addEventListener('change', handleProfileChange);
+            addComponentBtn.addEventListener('click', addComponentToList);
+            addedComponentListEl.addEventListener('click', handleAddedComponentListClick);
 
             // Startet das Laden der Daten
             fetchGitHubData();
@@ -303,7 +306,7 @@
             // Fügt eine Standard-Platzhalter-Option hinzu
             const placeholder = document.createElement('option');
             placeholder.value = "";
-            placeholder.textContent = "Komponente auswählen...";
+            placeholder.textContent = "Komponenten-Quelle auswählen...";
             placeholder.disabled = true;
             placeholder.selected = true;
             container.appendChild(placeholder);
@@ -320,6 +323,7 @@
          * Zeigt die Komponenten-Sektion an/blendet sie aus, basierend auf der Profilauswahl.
          */
         function handleProfileChange() {
+            clearError(); // Fehler löschen, wenn Benutzer Interaktion zeigt
             const selectedProfiles = document.querySelectorAll('input[name="profile"]:checked').length;
             if (selectedProfiles > 0) {
                 componentFieldsetEl.classList.remove('hidden');
@@ -332,10 +336,20 @@
          * Fügt die ausgewählte Komponente aus dem Dropdown zur Liste "Hinzugefügte Komponenten" hinzu.
          */
         function addComponentToList() {
+            clearError();
             const selectedOption = componentDropdownEl.options[componentDropdownEl.selectedIndex];
+            const customName = componentCustomNameEl.value.trim();
+
+            // Validierung
             if (!selectedOption || !selectedOption.value) {
-                // Verhindert das Hinzufügen der Platzhalter-Option
+                showError("Bitte wählen Sie eine Komponenten-Quelle aus dem Dropdown aus.");
+                componentDropdownEl.focus();
                 return; 
+            }
+            if (!customName) {
+                showError("Bitte geben Sie einen 'Eigenen Namen' für die Komponenten-Instanz ein.");
+                componentCustomNameEl.focus();
+                return;
             }
 
             const downloadUrl = selectedOption.value;
@@ -349,19 +363,24 @@
 
             const li = document.createElement('li');
             li.className = 'added-component-item';
-            // Speichert die Daten im Element für die spätere JSON-Generierung
+            // Speichert alle Daten im Element für die spätere JSON-Generierung
             li.dataset.url = downloadUrl;
             li.dataset.filename = fileName;
+            li.dataset.title = customName; // NEU
             
             li.innerHTML = `
-                <span class="truncate" title="${fileName}">${fileName}</span>
+                <span class="truncate" title="${customName} (${fileName})">
+                    <strong>${customName}</strong>
+                    <span class="text-gray-600 ml-2">(${fileName})</span>
+                </span>
                 <button type="button" class="remove-component-btn" title="Entfernen">X</button>
             `;
             
             addedComponentListEl.appendChild(li);
 
-            // Setzt das Dropdown zurück
+            // Setzt Eingabefelder zurück
             componentDropdownEl.selectedIndex = 0;
+            componentCustomNameEl.value = '';
         }
 
         /**
@@ -433,11 +452,13 @@
             const sspComponents = Array.from(addedComponentItems).map(item => {
                 const downloadUrl = item.dataset.url;
                 const fileName = item.dataset.filename;
+                const componentTitle = item.dataset.title; // NEU: Holt den Titel aus dem Dataset
+
                 return {
                     "uuid": crypto.randomUUID(),
                     "type": "service", // Setzt einen Standardtyp
-                    "title": fileName.replace('.json', ''),
-                    "description": `Komponentendefinition geladen von ${fileName}`,
+                    "title": componentTitle, // VERWENDET DEN EIGENEN NAMEN
+                    "description": `Instanz '${componentTitle}', basierend auf Komponentendefinition ${fileName}.`, // Beschreibung aktualisiert
                     "status": { "state": "operational" },
                     "links": [
                         { "href": downloadUrl, "rel": "component-definition" }
