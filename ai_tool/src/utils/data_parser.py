@@ -8,7 +8,7 @@ into more structured and accessible formats that the pipeline can easily use.
 import logging
 from typing import Any, Dict, List, Tuple
 
-from constants import ALLOWED_MAIN_GROUPS
+from constants import ALLOWED_MAIN_GROUPS, ALLOWED_PROCESS_BAUSTEINE
 
 
 def find_bausteine_with_prose(bsi_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -18,22 +18,27 @@ def find_bausteine_with_prose(bsi_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     bausteine_with_prose = []
     catalog = bsi_data.get("catalog", {})
     for group in catalog.get("groups", []):
-        if group.get("id") in ALLOWED_MAIN_GROUPS:
-            for sub_group in group.get("groups", []):
-                if sub_group.get("class") == "baustein":
-                    # Find the 'usage' description for the Baustein
-                    baustein_description = ""
-                    for part in sub_group.get("parts", []):
-                        if part.get("name") == "usage":
-                            baustein_description = part.get("prose", "")
-                            break
+        for sub_group in group.get("groups", []):
+            if sub_group.get("class") == "baustein":
+                # Find the 'usage' description for the Baustein
+                baustein_description = ""
+                for part in sub_group.get("parts", []):
+                    if part.get("name") == "usage":
+                        baustein_description = part.get("prose", "")
+                        break
 
+                if (
+                    group.get("id") in ALLOWED_MAIN_GROUPS
+                    or sub_group.get("id") in ALLOWED_PROCESS_BAUSTEINE
+                ):
                     if baustein_description:
-                        bausteine_with_prose.append({
-                            "id": sub_group.get("id"),
-                            "title": _ensure_string_title(sub_group.get("title")),
-                            "description": baustein_description,
-                        })
+                        bausteine_with_prose.append(
+                            {
+                                "id": sub_group.get("id"),
+                                "title": _ensure_string_title(sub_group.get("title")),
+                                "description": baustein_description,
+                            }
+                        )
     return bausteine_with_prose
 
 
@@ -44,15 +49,17 @@ def get_anforderungen_for_bausteine(bsi_data: Dict[str, Any]) -> Dict[str, List[
     baustein_anforderungen_map = {}
     catalog = bsi_data.get("catalog", {})
     for group in catalog.get("groups", []):
-        if group.get("id") in ALLOWED_MAIN_GROUPS:
-            for sub_group in group.get("groups", []):
-                baustein_id = sub_group.get("id")
-                if baustein_id:
-                    anforderung_ids = []
-                    if "controls" in sub_group:
-                        for control in sub_group["controls"]:
-                            anforderung_ids.append(control["id"])
-                    baustein_anforderungen_map[baustein_id] = anforderung_ids
+        for sub_group in group.get("groups", []):
+            baustein_id = sub_group.get("id")
+            if baustein_id and (
+                group.get("id") in ALLOWED_MAIN_GROUPS
+                or baustein_id in ALLOWED_PROCESS_BAUSTEINE
+            ):
+                anforderung_ids = []
+                if "controls" in sub_group:
+                    for control in sub_group["controls"]:
+                        anforderung_ids.append(control["id"])
+                baustein_anforderungen_map[baustein_id] = anforderung_ids
     return baustein_anforderungen_map
 
 logger = logging.getLogger(__name__)
