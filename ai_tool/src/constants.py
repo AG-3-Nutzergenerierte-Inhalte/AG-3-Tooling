@@ -25,6 +25,7 @@ GPP_KOMPENDIUM_JSON_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek
 
 # --- Filtering ---
 ALLOWED_MAIN_GROUPS = ["SYS", "INF", "IND", "APP", "NET"]
+ALLOWED_PROCESS_BAUSTEINE = ["OPS.2.2", "OPS.2.3", "OPS.3.2", "CON.11.1", "CON.7", "CON.8"]
 
 # --- Output to Stand der Technik Submodule File Paths ---
 SDT_OUTPUT_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte")
