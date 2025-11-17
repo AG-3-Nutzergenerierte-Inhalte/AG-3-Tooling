@@ -95,7 +95,7 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjek
                 elif part.get("name") == "guidance":
                     guidance = part.get("prose", "").strip().replace("\n", "<BR>")
 
-            description = f"{prose}BR{guidance}" if prose and guidance else prose or guidance
+            description = f"({baustein_id} / {bsi_anforderung_id}) {prose}BR{guidance}" if prose and guidance else f"({baustein_id} / {bsi_anforderung_id}) {prose or guidance}"
 
             statements = []
             for part in bsi_control_data.get("parts", []):
@@ -186,7 +186,7 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, zielobjekt
     implemented_reqs = [{
         "uuid": str(uuid.uuid4()),
         "control-id": gpp_control_id,
-        "description": f"This control is implemented as defined in the profile."
+        "description": f"Implementation for control {gpp_control_id} from Baustein {baustein_id} as defined in the profile."
     } for gpp_control_id in gpp_controls]
 
     component_definition = {
@@ -340,7 +340,7 @@ def generate_zielobjekt_components():
         implemented_reqs = [{
             "uuid": str(uuid.uuid4()),
             "control-id": gpp_control_id,
-            "description": f"This control is implemented as defined in the profile."
+            "description": f"Implementation for control {gpp_control_id} from Zielobjekt {zielobjekt_name} as defined in the profile."
         } for gpp_control_id in gpp_controls]
 
 
