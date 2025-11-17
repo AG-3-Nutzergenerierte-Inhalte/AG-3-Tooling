@@ -4,6 +4,7 @@ Pipeline Stage: Component Definition Generation
 This stage generates OSCAL Component Definition files for each Baustein.
 """
 import sys
+import urllib.parse
 import os
 import uuid
 import logging
@@ -33,6 +34,20 @@ def get_component_type(baustein_id: str) -> str:
         "INF": "physical",
     }
     return type_map.get(prefix, "service")
+
+def get_source_url(local_path: str) -> str:
+    """Constructs the correct remote GitHub URL for a given local file path."""
+    base_url = "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"
+    sdt_root = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek")
+
+    # Get the path relative to the submodule root, not the whole repo.
+    relative_path = os.path.relpath(local_path, sdt_root)
+
+    # Ensure forward slashes for the URL and encode special characters.
+    relative_path_posix = relative_path.replace(os.sep, '/')
+    encoded_path = urllib.parse.quote(relative_path_posix, safe='/')
+
+    return f"{base_url}/{encoded_path}"
 
 def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, mapping: dict, bsi_catalog: dict, gpp_catalog: dict, output_dir: str):
     """Generates the detailed, user-defined component file."""
@@ -137,7 +152,7 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjek
                 "props": component_props,
                 "control-implementations": [{
                     "uuid": str(uuid.uuid4()),
-                    "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"),
+                    "source": get_source_url(profile_path),
                     "description": f"Implementation for all controls in Baustein {baustein_id}",
                     "implemented-requirements": implemented_reqs
                 }]
@@ -190,7 +205,7 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, zielobjekt
                 "description": f"This component imports the profile for Baustein {baustein_id}.",
                 "control-implementations": [{
                     "uuid": str(uuid.uuid4()),
-                    "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"),
+                    "source": get_source_url(profile_path),
                     "description": f"Imports all controls from the profile for Baustein {baustein_id}.",
                     "implemented-requirements": implemented_reqs
                 }]
@@ -345,7 +360,7 @@ def generate_zielobjekt_components():
                     "description": f"This component imports the profile for {zielobjekt_name}.",
                     "control-implementations": [{
                         "uuid": str(uuid.uuid4()),
-                        "source": profile_path.replace(os.path.abspath(REPO_ROOT), "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"),
+                        "source": get_source_url(profile_path),
                         "description": f"Imports all controls from the profile for {zielobjekt_name}.",
                         "implemented-requirements": implemented_reqs
                     }]
