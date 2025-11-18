@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Decomposition Schema",
+  "description": "Schema for the output of the decomposition stage.",
+  "type": "object",
+  "properties": {
+    "decomposed_anforderungen": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "original_anforderung_id": {
+            "type": "string",
+            "pattern": "^[A-Z]{2,}(\\.\\d+)+(?:.A\\d+)?$"
+          },
+          "sub_requirements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{2,}(\\.\\d+)+(?:.A\\d+)?_sub_\\d+$"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "description"]
+            }
+          }
+        },
+        "required": ["original_anforderung_id", "sub_requirements"]
+      }
+    }
+  },
+  "required": ["decomposed_anforderungen"]
+}
