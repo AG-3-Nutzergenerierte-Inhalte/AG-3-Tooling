@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Metadata Generation Schema",
+  "description": "Schema for the output of the metadata generation stage.",
+  "type": "object",
+  "properties": {
+    "generated_metadata": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sub_requirement_id": {
+            "type": "string",
+            "pattern": "^[A-Z]{2,}(\\.\\d+)+(?:.A\\d+)?_sub_\\d+$"
+          },
+          "gpp_control_id": {
+            "type": "string",
+            "pattern": "^GPP\\.\\d+\\.\\d+$"
+          },
+          "maturity_level": {
+            "type": "string",
+            "enum": ["Standard", "Advanced", "High"]
+          },
+          "phase": {
+            "type": "string",
+            "enum": ["Plan", "Build", "Run", "Detect", "Respond", "Recover"]
+          }
+        },
+        "required": ["sub_requirement_id", "gpp_control_id", "maturity_level", "phase"]
+      }
+    }
+  },
+  "required": ["generated_metadata"]
+}
