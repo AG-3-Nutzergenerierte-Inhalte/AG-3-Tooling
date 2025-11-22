@@ -14,6 +14,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src'
 
 from pipeline import stage_component
 from clients.ai_client import AiClient
+from constants import GROUND_TRUTH_MODEL_PRO
 
 class TestStageComponentEnhanced(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -141,6 +142,9 @@ class TestStageComponentEnhanced(unittest.IsolatedAsyncioTestCase):
         mock_ai_client.generate_validated_json_response.assert_called_once()
         call_args = mock_ai_client.generate_validated_json_response.call_args
         prompt_input = call_args[1]['prompt']
+
+        # Verify that model_override is passed correctly
+        self.assertEqual(call_args[1].get('model_override'), GROUND_TRUTH_MODEL_PRO)
 
         self.assertIn("Intro text...", prompt_input)
         self.assertIn("GPP.APP.1.1", prompt_input)

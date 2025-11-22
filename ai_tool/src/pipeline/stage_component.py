@@ -13,6 +13,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from constants import *
+from constants import GROUND_TRUTH_MODEL_PRO
 from config import app_config
 from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
 from utils.oscal_utils import validate_oscal
@@ -205,10 +206,12 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         # Load schema for validation
         response_schema = read_json_file(ENHANCED_CONTROL_RESPONSE_SCHEMA_PATH)
 
+        # Use GROUND_TRUTH_MODEL_PRO for this complex task as requested
         ai_response = await ai_client.generate_validated_json_response(
             prompt=full_prompt,
             json_schema=response_schema,
-            request_context_log=f"EnhancedComponent-{baustein_id}"
+            request_context_log=f"EnhancedComponent-{baustein_id}",
+            model_override=GROUND_TRUTH_MODEL_PRO
         )
 
         # ai_response should be a list of objects based on the schema
@@ -394,35 +397,51 @@ async def run_stage_component():
             if baustein.get("id") and baustein.get("title"):
                 bsi_baustein_title_lookup[baustein["id"]] = baustein["title"]
 
+    # Concurrency control
+    sem = asyncio.Semaphore(app_config.max_concurrent_ai_requests)
+
+    async def process_single_baustein(baustein_id, zielobjekt_uuid):
+        async with sem:
+            logger.info(f"Processing Baustein: {baustein_id}")
+
+            zielobjekt_name = zielobjekt_name_map.get(zielobjekt_uuid)
+            if not zielobjekt_name:
+                logger.warning(f"No name found for Zielobjekt UUID {zielobjekt_uuid} (Baustein {baustein_id}). Skipping.")
+                return
+
+            baustein_title = baustein_titles.get(baustein_id) or bsi_baustein_title_lookup.get(baustein_id)
+            if not baustein_title:
+                logger.warning(f"No title found for Baustein ID {baustein_id}. Using Zielobjekt name as fallback.")
+                baustein_title = zielobjekt_name
+
+            sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
+            profile_filename = f"{sanitized_zielobjekt_name}_profile.json"
+            profile_path = os.path.join(profile_dir, profile_filename)
+
+            mapping = controls_anforderungen.get(zielobjekt_uuid, {}).get("mapping", {})
+
+            await generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
+            generate_minimal_component(baustein_id, baustein_title, zielobjekt_name, profile_path, output_dir)
+
+    tasks = []
     for baustein_id, zielobjekt_uuid in baustein_zielobjekt_map.get("baustein_zielobjekt_map", {}).items():
-        logger.info(f"Processing Baustein: {baustein_id}")
+        tasks.append(process_single_baustein(baustein_id, zielobjekt_uuid))
 
-        zielobjekt_name = zielobjekt_name_map.get(zielobjekt_uuid)
-        if not zielobjekt_name:
-            logger.warning(f"No name found for Zielobjekt UUID {zielobjekt_uuid} (Baustein {baustein_id}). Skipping.")
-            continue
+    # Add special ISMS Baustein to tasks
+    async def process_isms_baustein():
+        async with sem:
+            logger.info("Processing special ISMS Baustein")
+            isms_baustein_id = "ISMS"
+            isms_baustein_title = "ISMS"
+            isms_profile_path = os.path.join(profile_dir, "isms_profile.json")
+            isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {})
+            await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
+            generate_minimal_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, output_dir)
 
-        baustein_title = baustein_titles.get(baustein_id) or bsi_baustein_title_lookup.get(baustein_id)
-        if not baustein_title:
-            logger.warning(f"No title found for Baustein ID {baustein_id}. Using Zielobjekt name as fallback.")
-            baustein_title = zielobjekt_name
+    tasks.append(process_isms_baustein())
 
-        sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
-        profile_filename = f"{sanitized_zielobjekt_name}_profile.json"
-        profile_path = os.path.join(profile_dir, profile_filename)
-
-        mapping = controls_anforderungen.get(zielobjekt_uuid, {}).get("mapping", {})
-
-        await generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
-        generate_minimal_component(baustein_id, baustein_title, zielobjekt_name, profile_path, output_dir)
-
-    logger.info("Processing special ISMS Baustein")
-    isms_baustein_id = "ISMS"
-    isms_baustein_title = "ISMS"
-    isms_profile_path = os.path.join(profile_dir, "isms_profile.json")
-    isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {})
-    await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
-    generate_minimal_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, output_dir)
+    # Run all tasks concurrently
+    await asyncio.gather(*tasks)
 
     generate_zielobjekt_components()
 
