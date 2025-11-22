@@ -15,8 +15,8 @@ from datetime import datetime, timezone
 from constants import *
 from constants import GROUND_TRUTH_MODEL_PRO
 from config import app_config
-from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
-from utils.data_parser import extract_all_gpp_controls
+from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file, read_text_file
+from utils.data_parser import extract_all_gpp_controls, filter_markdown
 from utils.oscal_utils import validate_oscal
 from utils.text_utils import sanitize_filename
 from clients.ai_client import AiClient
@@ -134,22 +134,47 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
     component_props = []
 
     if baustein_data:
+        # Include 'introduction' and 'risk' parts as context
         for part in baustein_data.get("parts", []):
+            part_name = part.get("name", "")
             title = part.get("title")
             prose = part.get("prose")
+
+            # Store props for all parts with title and prose
             if title and prose:
-                baustein_parts_text += f"Part: {title}\nContent: {prose}\n\n"
-                component_props.append({
+                 component_props.append({
                     "name": title.strip().replace("\n", "<BR>"),
                     "value": prose.strip().replace("\n", "<BR>")
                 })
+
+            # Specific filtering for context generation
+            if part_name == "introduction" and prose:
+                 baustein_parts_text += f"Part: {title or 'Introduction'}\nContent: {prose}\n\n"
+
+            if part_name == "risk" and prose:
+                 baustein_parts_text += f"--------------------------------------------------\n## Risks\nContent: {prose}\n\n"
 
     # 3. Prepare AI Input for Controls
     # Use recursive extraction to find all controls, including nested ones
     gpp_controls_lookup = extract_all_gpp_controls(gpp_catalog)
 
-    ai_input_controls = []
     control_descriptions = {} # Store original descriptions to prepend later
+
+    # Load markdown files for filtering. This is done here but ideally could be passed in.
+    # Reading files inside the loop is inefficient if called many times, but we rely on OS caching or we can load it once outside.
+    # Given the function signature, we load it here or assume it's fast enough.
+    # To follow the architecture, we should have loaded these outside, but the function signature doesn't support it yet.
+    # However, for correctness as per instructions, I will read them here or use a cached approach if possible.
+    # I'll read them here for simplicity as per instructions.
+
+    gpp_md_path = GPP_STRIPPED_ISMS_MD_PATH if baustein_id == "ISMS" else GPP_STRIPPED_MD_PATH
+    gpp_markdown_content = read_text_file(gpp_md_path)
+
+    if not gpp_markdown_content:
+        logger.error(f"Failed to load markdown content from {gpp_md_path}")
+        return
+
+    filtered_markdown = filter_markdown(gpp_controls_in_profile, gpp_markdown_content)
 
     for gpp_control_id in gpp_controls_in_profile:
         gpp_control_data = gpp_controls_lookup.get(gpp_control_id, {})
@@ -162,22 +187,14 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
             elif part.get("name") == "guidance":
                 guidance = part.get("prose", "").strip()
 
-        # Format for AI input
-        ai_input_controls.append({
-            "id": gpp_control_id,
-            "title": gpp_control_data.get("title", ""),
-            "prose": prose,
-            "guidance": guidance
-        })
-
         # Store for description generation
         desc_prose = prose.replace("\n", "<BR>")
         desc_guidance = guidance.replace("\n", "<BR>")
         control_descriptions[gpp_control_id] = f"{desc_prose}BR{desc_guidance}" if desc_prose and desc_guidance else desc_prose or desc_guidance
 
     # 4. Call AI
-    if not ai_input_controls:
-        logger.warning(f"No controls found for profile {profile_path}. Skipping generation.")
+    if not filtered_markdown:
+        logger.warning(f"No controls found (or filtered) for profile {profile_path}. Skipping generation.")
         return
 
     # Construct the full prompt input
@@ -198,8 +215,11 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         return
 
     # Combine template with data
-    # The template expects "input list" which we provide as JSON
-    full_prompt = f"{prompt_template}\n\nContext:\nTitle: {baustein_title}\n{baustein_parts_text}\n\nInput Data (JSON):\n{json.dumps(ai_input_controls, ensure_ascii=False)}"
+    # The template expects "input list" which we provide as Markdown now
+    full_prompt = f"{prompt_template}\n\nContext:\nTitle: {baustein_title}\n{baustein_parts_text}\n\nInput Data (Markdown):\n{filtered_markdown}"
+
+    # Replace all newlines with carriage return + newline as requested
+    full_prompt = full_prompt.replace("\n", "\r\n")
 
     try:
         # Load schema for validation
