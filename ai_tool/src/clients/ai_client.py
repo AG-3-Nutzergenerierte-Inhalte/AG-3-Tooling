@@ -1,27 +1,28 @@
-# src/clients/ai_client.py
 import logging
 import json
 import asyncio
 import datetime
 from typing import List, Dict, Any, Optional
 
-from google.cloud import aiplatform
-from google.api_core import exceptions as api_core_exceptions
-from google.auth import exceptions
-from jsonschema import validate, ValidationError
-from vertexai.generative_models import GenerativeModel, GenerationConfig, Part
+# New SDK Imports
+from google import genai
+from google.genai import types, errors
 
+# Third-party Imports
+from jsonschema import validate, ValidationError
+
+# App Config
 from config import app_config
 from constants import *
 
 logger = logging.getLogger(__name__)
 
 class AiClient:
-    """A client for all Vertex AI model interactions, using the aiplatform SDK."""
+    """A client for all Vertex AI model interactions, using the google-genai SDK (v1.52.0)."""
 
     def __init__(self, config):
         """
-        Initializes the AiClient.
+        Initializes the AiClient using the Unified Vertex AI Client.
 
         Args:
             config: The application configuration object.
@@ -39,122 +40,103 @@ class AiClient:
         current_date = datetime.date.today().strftime("%Y-%m-%d")
         self.system_message = f"{base_system_message}\n\nImportant: Today's date is {current_date}."
 
-        # Initialize aiplatform with the configured region, as Vertex AI services are regionalized.
-        aiplatform.init(project=config.gcp_project_id, location=config.region)
-
-        # Default model instance
-        self.generative_model = GenerativeModel(
-            GROUND_TRUTH_MODEL, system_instruction=self.system_message
+        # Initialize the Unified Client with ADC (vertexai=True)
+        # We do not need to cache model objects anymore; the client handles the connection.
+        logger.info(f"Initializing Google GenAI Client for project '{config.gcp_project_id}' in region '{config.region}'.")
+        self.client = genai.Client(
+            vertexai=True,
+            project=config.gcp_project_id,
+            location=config.region
         )
         
-        # Cache for alternative model instances
-        self._model_cache = {GROUND_TRUTH_MODEL: self.generative_model}
-        
-        logger.info(f"Vertex AI Client instantiated for project '{config.gcp_project_id}' in region '{config.region}'.")
         logger.debug(f"System Message Context includes today's date: {current_date}")
 
-    def _get_model_instance(self, model_name: str) -> GenerativeModel:
-        """
-        Get or create a GenerativeModel instance for the specified model.
-        
-        Args:
-            model_name: The model name (e.g., 'gemini-1.5-pro', 'gemini-1.5-flash')
-            
-        Returns:
-            GenerativeModel instance for the specified model
-        """
-        if model_name not in self._model_cache:
-            logger.debug(f"Creating new model instance for '{model_name}'")
-            self._model_cache[model_name] = GenerativeModel(
-                model_name, system_instruction=self.system_message
-            )
-        return self._model_cache[model_name]
-
-    def _prepare_generation_config(self, json_schema: Dict[str, Any], model_name: Optional[str] = None) -> Dict[str, Any]:
-        """Prepares and converts the JSON schema for the GenerationConfig."""
+    def _prepare_generation_config(self, json_schema: Dict[str, Any]) -> types.GenerateContentConfig:
+        """Prepares and converts the JSON schema for the GenerateContentConfig."""
         try:
+            # Create a copy to avoid modifying the original
             schema_for_api = json.loads(json.dumps(json_schema))
+            # The new SDK is robust, but removing $schema is still good practice
             schema_for_api.pop("$schema", None)
         except Exception as e:
             logger.error(f"Failed to process JSON schema before API call: {e}")
             raise ValueError("Invalid JSON schema provided.") from e
 
-        # Initialization validates the schema compatibility. If the conversion failed or the schema is otherwise invalid, 
-        # this might raise exceptions (including the AttributeError we aim to fix).
         try:
-            config_args = {
-                "response_mime_type": "application/json",
-                "response_schema": schema_for_api,
-                "max_output_tokens": API_MAX_OUTPUT_TOKEN,
-                "temperature": API_TEMPERATURE,
-            }
-
-            return GenerationConfig(**config_args)
+            # Map constants to the new types.GenerateContentConfig structure
+            return types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema_for_api,
+                max_output_tokens=API_MAX_OUTPUT_TOKEN,
+                temperature=API_TEMPERATURE,
+                system_instruction=self.system_message
+            )
         except Exception as e:
             logger.error(f"Failed to prepare generation config: {e}", exc_info=True)
-            raise ValueError(f"Invalid or incompatible GenerationConfig: {e}") from e
+            raise ValueError(f"Invalid or incompatible GenerateContentConfig: {e}") from e
 
     def _process_response(self, response) -> Dict[str, Any]:
-            """Processes the model response, handling finish reasons, thought parts, and JSON parsing."""
-            if not response.candidates:
-                raise ValueError("The model response contained no candidates.")
+        """Processes the model response, handling finish reasons, thought parts, and JSON parsing."""
+        if not response.candidates:
+            raise ValueError("The model response contained no candidates.")
 
-            # --- Robust Finish Reason Check ---
-            finish_reason_obj = response.candidates[0].finish_reason
-            try:
-                finish_reason_int = int(finish_reason_obj)
-            except TypeError:
-                logger.error(
-                    f"Could not cast finish reason to integer. Type: {type(finish_reason_obj)}. Value: {finish_reason_obj}."
-                )
-                raise TypeError(f"Could not determine finish reason integer value.")
+        candidate = response.candidates[0]
 
-            if finish_reason_int not in [1, 2]:
-                reason_display = f"Code {finish_reason_int}"
+        # --- Robust Finish Reason Check ---
+        # In the new SDK, finish_reason is often an Enum string (e.g., "STOP"). 
+        # We check strictly for success indicators.
+        # "STOP" is standard success. "MAX_TOKENS" (often mapped to 2) might be acceptable depending on logic, 
+        # but usually implies truncation.
+        valid_reasons = ["STOP", 1] # 1 is the integer value for STOP in some contexts
+        
+        # Helper to get string representation safely
+        f_reason = candidate.finish_reason
+        
+        is_valid = False
+        if isinstance(f_reason, str) and f_reason in valid_reasons:
+            is_valid = True
+        elif isinstance(f_reason, int) and f_reason in valid_reasons:
+            is_valid = True
+            
+        if not is_valid:
+             raise ValueError(f"Model finished with non-OK reason: {f_reason}")
+        # --- End Robust Finish Reason Check ---
+
+        # --- START: Handle Thinking/Reasoning Parts ---
+        # We iterate parts to safely extract only valid text, ignoring 'thought' blocks
+        # which can break JSON parsing.
+        full_text_parts = []
+        
+        if candidate.content and candidate.content.parts:
+            for part in candidate.content.parts:
                 try:
-                    if hasattr(finish_reason_obj, 'name') and finish_reason_obj.name:
-                        reason_display = f"{finish_reason_obj.name} (Code {finish_reason_int})"
+                    # In v1.52.0, part.text exists if it is a text part. 
+                    # If it is a thought part, accessing text might be None or imply checking part.thought
+                    if part.text:
+                        full_text_parts.append(part.text)
                 except Exception:
-                    pass 
-                raise ValueError(f"Model finished with non-OK reason: {reason_display}")
-            # --- End Robust Finish Reason Check ---
-
-            # --- START: Handle Thinking/Reasoning Parts ---
-            # With 'thinking' enabled, response.text fails because it chokes on the 'thought' part.
-            # We must iterate parts and safely extract only valid text.
-            full_text_parts = []
-            for part in response.candidates[0].content.parts:
-                try:
-                    # Attempt to access the text attribute. 
-                    # The SDK raises ValueError/AttributeError if the part is a 'thought' or 'function_call'
-                    text_content = part.text
-                    if text_content:
-                        full_text_parts.append(text_content)
-                except (ValueError, AttributeError):
-                    # This is the 'thought_signature' or other non-text part; skip it.
-                    logger.debug("Skipping non-text part (likely model thoughts/reasoning).")
+                    # If any attribute access fails, assume it's a non-text part
                     continue
-            
-            raw_response_text = "".join(full_text_parts)
-            
-            if not raw_response_text:
-                raise ValueError("Model response contained candidates but no extractable text (only thoughts/empty).")
-            # --- END: Handle Thinking/Reasoning Parts ---
+        
+        raw_response_text = "".join(full_text_parts)
+        
+        if not raw_response_text:
+            raise ValueError("Model response contained candidates but no extractable text (only thoughts/empty).")
+        # --- END: Handle Thinking/Reasoning Parts ---
 
-            # Clean Markdown code blocks if present (Thinking models love adding ```json)
-            if raw_response_text.startswith("```json"):
-                raw_response_text = raw_response_text.replace("```json", "").replace("```", "")
-            elif raw_response_text.startswith("```"):
-                raw_response_text = raw_response_text.replace("```", "")
+        # Clean Markdown code blocks if present
+        if raw_response_text.startswith("```json"):
+            raw_response_text = raw_response_text.replace("```json", "").replace("```", "")
+        elif raw_response_text.startswith("```"):
+            raw_response_text = raw_response_text.replace("```", "")
 
-            try:
-                response_json = json.loads(raw_response_text)
-            except json.JSONDecodeError as e:
-                # Clean JSON error without the full traceback
-                logger.error(f"Failed JSON Text: {raw_response_text}") # Log the bad text for debugging
-                raise ValueError(f"Failed to parse model response as JSON: {str(e).split(':')[0]}")
-            
-            return response_json
+        try:
+            response_json = json.loads(raw_response_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed JSON Text: {raw_response_text}") 
+            raise ValueError(f"Failed to parse model response as JSON: {str(e).split(':')[0]}")
+        
+        return response_json
 
     async def generate_validated_json_response(
         self, 
@@ -167,51 +149,49 @@ class AiClient:
     ) -> Dict[str, Any]:
       
         """
-            Generates a JSON response from the AI model, enforcing a specific schema and
-            optionally providing GCS files as context. Implements an async retry loop
-            with exponential backoff and connection limiting.
-
-            Args:
-                prompt: The text prompt for the model.
-                json_schema: The JSON schema to enforce on the model's output.
-                gcs_uris: A list of 'gs://...' URIs pointing to PDF files for context.
-                request_context_log: A string to identify the request source in logs.
-                model_override: Optional model name to use instead of the default.
-                max_retries: Optional override for the number of retries (defaults to MAX_RETRIES).
-
-            Returns:
-                The parsed JSON response from the model.
-            """
+        Generates a JSON response from the AI model using google-genai SDK.
+        """
         
         retries = max_retries if max_retries is not None else API_MAX_RETRIES
-        
         model_to_use = model_override if model_override else GROUND_TRUTH_MODEL
 
         try:
-            gen_config = self._prepare_generation_config(json_schema, model_name=model_to_use)
+            # Prepare configuration (includes system_instruction)
+            gen_config = self._prepare_generation_config(json_schema)
         except ValueError as e:
             logger.error(f"[{request_context_log}] Configuration failed. Cannot proceed with AI request: {e}")
             raise
 
-        generative_model = self._get_model_instance(model_to_use)
-
-        contents = [prompt]
+        # Construct Content Parts
+        # The new SDK allows mixing strings and types.Part objects
+        contents = []
+        
+        # Add GCS Files if present
         if gcs_uris:
             for uri in gcs_uris:
-                contents.append(Part.from_uri(uri, mime_type="application/pdf"))
+                # Syntax: types.Part.from_uri(file_uri=..., mime_type=...)
+                contents.append(types.Part.from_uri(file_uri=uri, mime_type="application/pdf"))
             if self.config.is_test_mode:
                 logger.debug(f"Attaching {len(gcs_uris)} GCS files to the prompt.")
 
-        # logger.debug(f"Prmpt: {contents}")
+        # Add the text prompt
+        contents.append(prompt)
 
         for attempt in range(retries):
             try:
                 logger.debug(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")
-                response = await generative_model.generate_content_async(
-                    contents=contents,
-                    generation_config=gen_config,
-                )
+                
+                # max logging
+                # logger.debug(f"raw prompt: {contents}")
 
+                # Asynchronous Generation call via .aio accessor
+                response = await self.client.aio.models.generate_content(
+                    model=model_to_use,
+                    contents=contents,
+                    config=gen_config,
+                )
+                # max logging
+                # logger.debug(f"raw response JSON: {response}")
                 response_json = self._process_response(response)
 
                 validate(instance=response_json, schema=json_schema)
@@ -219,7 +199,8 @@ class AiClient:
                 logger.info(f"[{request_context_log}] Successfully generated and validated JSON on attempt {attempt + 1}.")
                 return response_json
 
-            except (api_core_exceptions.GoogleAPICallError, ValueError, TypeError, ValidationError) as e:
+            except (errors.ClientError, ValueError, TypeError, ValidationError) as e:
+                # errors.ClientError covers most API-level issues in the new SDK
                 wait_time = 2 ** attempt
                 if attempt == retries - 1:
                     logger.critical(f"[{request_context_log}] AI generation failed after all {retries} retries.", exc_info=True)
@@ -228,19 +209,16 @@ class AiClient:
                 error_msg = str(e)
                 log_message = f"[{request_context_log}] Attempt {attempt + 1} failed. Retrying in {wait_time}s..."
 
-                if isinstance(e, api_core_exceptions.GoogleAPICallError):
-                    logger.warning(f"[{request_context_log}] Generation attempt {attempt + 1} failed with Google API Error (Code: {e.code}): {e.message}. Retrying in {wait_time}s...")
+                if isinstance(e, errors.ClientError):
+                    logger.warning(f"[{request_context_log}] API Error: {e}. Retrying in {wait_time}s...")
                 elif isinstance(e, ValidationError):
                     clean_msg = e.message.split('\n')[0] if '\n' in e.message else e.message
-                    logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed schema validation: '{clean_msg}'. Retrying in {wait_time}s...")
-                else: # ValueError or TypeError
-                    if "Failed to parse model response as JSON" in error_msg:
-                        logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed: JSON parsing error. Retrying in {wait_time}s...")
-                    else:
-                        logger.warning(f"[{request_context_log}] Attempt {attempt + 1} failed with processing error: {error_msg}. Retrying in {wait_time}s...")
+                    logger.warning(f"[{request_context_log}] Schema validation failed: '{clean_msg}'. Retrying in {wait_time}s...")
+                else:
+                    logger.warning(f"[{request_context_log}] Processing error: {error_msg}. Retrying in {wait_time}s...")
 
                 await asyncio.sleep(wait_time)
 
             except Exception as e:
-                logger.error(f"[{request_context_log}] Unexpected, non-retryable error during AI generation on attempt {attempt + 1}: {type(e).__name__}: {e}", exc_info=True)
+                logger.error(f"[{request_context_log}] Unexpected, non-retryable error: {type(e).__name__}: {e}", exc_info=True)
                 raise
