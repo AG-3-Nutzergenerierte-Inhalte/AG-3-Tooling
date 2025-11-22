@@ -102,7 +102,7 @@ async def _process_mapping(
             prompt=full_prompt,
             json_schema=matching_schema,
             request_context_log=f"AnforderungToKontrolle-{baustein_id}",
-            model_override=GROUND_TRUTH_MODEL_PRO
+            model_override=GROUND_TRUTH_MODEL
         )
 
     if not ai_response:
