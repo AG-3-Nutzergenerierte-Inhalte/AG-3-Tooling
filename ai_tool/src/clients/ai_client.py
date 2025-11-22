@@ -179,6 +179,8 @@ class AiClient:
             if self.config.is_test_mode:
                 logger.debug(f"Attaching {len(gcs_uris)} GCS files to the prompt.")
 
+        logger.debug(f"Prmpt: {contents}")
+
         for attempt in range(retries):
             try:
                 logger.debug(f"[{request_context_log}] Attempt {attempt + 1}/{retries}: Calling Gemini model '{model_to_use}'...")

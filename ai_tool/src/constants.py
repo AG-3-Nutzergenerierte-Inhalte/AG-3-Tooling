@@ -20,7 +20,7 @@ ANFORDERUNG_ID_PATTERN = re.compile(r"^[A-Z]{2,}(\.\d+)+(?:.A\d+)?$")
 
 # --- Data File Paths ---
 ZIELOBJEKTE_CSV_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Dokumentation/namespaces/zielobjekte.csv")
-BSI_2023_JSON_PATH = os.path.join(REPO_ROOT, "BSI-GS-Benutzerdefinierte-Edition23-OSCAL/BS_GK_OSCAL_JSON_DATA/BSI_GS_OSCAL_current_2023_benutzerdefinierte.json")
+BSI_2023_JSON_PATH = os.path.join(REPO_ROOT, "ai_tool/src/assets/json/BSI_GS_OSCAL_current_2023_benutzerdefinierte_251121.json")
 GPP_KOMPENDIUM_JSON_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/Grundschutz++-Kompendium.json")
 
 # --- Filtering ---

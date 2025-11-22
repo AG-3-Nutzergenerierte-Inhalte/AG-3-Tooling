@@ -18,15 +18,30 @@
       },
       "effective_on_c": {
         "type": "string",
-        "description": "Impact on Confidentiality."
+        "description": "Impact on Confidentiality.",
+        "enum": [ 
+          "high",
+          "medium",
+          "low"
+        ]
       },
       "effective_on_i": {
         "type": "string",
-        "description": "Impact on Integrity."
+        "description": "Impact on Integrity.",
+        "enum": [ 
+          "high",
+          "medium",
+          "low"
+        ]
       },
       "effective_on_a": {
         "type": "string",
-        "description": "Impact on Availability."
+        "description": "Impact on Availability.",
+        "enum": [ 
+          "high",
+          "medium",
+          "low"
+        ]
       },
       "phase": {
         "type": "string",
