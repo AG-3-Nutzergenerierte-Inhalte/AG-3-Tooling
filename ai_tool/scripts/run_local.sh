@@ -42,11 +42,12 @@ if [[ " $@ " =~ " --clear-all " ]]; then
             echo "Clearing contents of '$dir/'..."
             # Delete all files inside the directory, but not the directory itself.
             # Use find to handle cases where the directory is empty.
-            find "$dir" -type f -name "*.json" -delete
+            rm $dir/*
         else
             echo "Warning: Directory '$dir' not found. Skipping."
         fi
     done
+    cp src/assets/json/prozessbausteine_mapping.json ../Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte/hilfsdateien/
     echo "--- Finished Clearing Files ---"
 fi
 

@@ -20,7 +20,7 @@ ANFORDERUNG_ID_PATTERN = re.compile(r"^[A-Z]{2,}(\.\d+)+(?:.A\d+)?$")
 
 # --- Data File Paths ---
 ZIELOBJEKTE_CSV_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Dokumentation/namespaces/zielobjekte.csv")
-BSI_2023_JSON_PATH = os.path.join(REPO_ROOT, "BSI-GS-Benutzerdefinierte-Edition23-OSCAL/BS_GK_OSCAL_JSON_DATA/BSI_GS_OSCAL_current_2023_benutzerdefinierte.json")
+BSI_2023_JSON_PATH = os.path.join(REPO_ROOT, "ai_tool/src/assets/json/BSI_GS_OSCAL_current_2023_benutzerdefinierte_251121.json")
 GPP_KOMPENDIUM_JSON_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/Grundschutz++-Kompendium.json")
 
 # --- Filtering ---
@@ -55,7 +55,7 @@ OSCAL_COMPONENT_SCHEMA_PATH = os.path.join(REPO_ROOT, "oscal_json_schemas/oscal_
 
 # --- AI Model Configuration ---
 GROUND_TRUTH_MODEL = "gemini-2.5-flash"
-GROUND_TRUTH_MODEL_PRO = "gemini-2.5-pro"
+GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-previev"
 
 # --- API Configuration ---
 # Constants for external API interactions, such as retry logic parameters.
