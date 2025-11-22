@@ -26,6 +26,26 @@ def create_dir_if_not_exists(directory_path):
         except OSError as e:
             logger.error(f"Error creating directory {directory_path}: {e}")
 
+def read_text_file(file_path):
+    """
+    Reads a text file and returns its content.
+
+    Args:
+        file_path (str): The path to the text file.
+
+    Returns:
+        str: The content of the file, or None if an error occurs.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+        return None
+    except Exception as e:
+        logger.error(f"Error reading text file {file_path}: {e}")
+        return None
+
 def read_json_file(file_path):
     """
     Reads a JSON file and returns its content.

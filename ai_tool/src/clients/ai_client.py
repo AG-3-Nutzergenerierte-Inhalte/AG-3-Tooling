@@ -70,7 +70,7 @@ class AiClient:
             )
         return self._model_cache[model_name]
 
-    def _prepare_generation_config(self, json_schema: Dict[str, Any]) -> GenerationConfig:
+    def _prepare_generation_config(self, json_schema: Dict[str, Any], model_name: Optional[str] = None) -> GenerationConfig:
         """Prepares and converts the JSON schema for the GenerationConfig."""
         try:
             schema_for_api = json.loads(json.dumps(json_schema))
@@ -82,12 +82,21 @@ class AiClient:
         # Initialization validates the schema compatibility. If the conversion failed or the schema is otherwise invalid, 
         # this might raise exceptions (including the AttributeError we aim to fix).
         try:
-            return GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=schema_for_api,
-                max_output_tokens=API_MAX_OUTPUT_TOKEN,
-                temperature=API_TEMPERATURE,
-            )
+            config_args = {
+                "response_mime_type": "application/json",
+                "response_schema": schema_for_api,
+                "max_output_tokens": API_MAX_OUTPUT_TOKEN,
+                "temperature": API_TEMPERATURE,
+            }
+
+            # Enable thinking if using the PRO model (Gemini 3)
+            if model_name == GROUND_TRUTH_MODEL_PRO:
+                # Use a dictionary for thinking_config to avoid import issues if ThinkingConfig type isn't available
+                # thinking_level="high" corresponds to "highest" budget/reasoning for Gemini 3
+                # include_thoughts=True enables the return of thought summaries
+                config_args["thinking_config"] = {"include_thoughts": True, "thinking_level": "high"}
+
+            return GenerationConfig(**config_args)
         except Exception as e:
             logger.error(f"Failed to initialize GenerationConfig. Schema might still be incompatible: {e}", exc_info=True)
             raise ValueError(f"Invalid or incompatible GenerationConfig: {e}") from e
@@ -163,13 +172,14 @@ class AiClient:
         
         retries = max_retries if max_retries is not None else API_MAX_RETRIES
         
+        model_to_use = model_override if model_override else GROUND_TRUTH_MODEL
+
         try:
-            gen_config = self._prepare_generation_config(json_schema)
+            gen_config = self._prepare_generation_config(json_schema, model_name=model_to_use)
         except ValueError as e:
             logger.error(f"[{request_context_log}] Configuration failed. Cannot proceed with AI request: {e}")
             raise
 
-        model_to_use = model_override if model_override else GROUND_TRUTH_MODEL
         generative_model = self._get_model_instance(model_to_use)
 
         contents = [prompt]

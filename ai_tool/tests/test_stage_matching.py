@@ -60,12 +60,13 @@ class TestStageMatching(unittest.TestCase):
         ]
 
         mock_gpp_md = "| ID | name | description |\n|---|---|---|\n| GPP.1 | GPP Control 1 | Desc 1 |\n| GPP.2 | GPP Control 2 | Desc 2 |"
+        mock_isms_md = "| ID | name | description |\n|---|---|---|\n| ISMS.1 | ISMS Control 1 | Desc 1 |"
         mock_bsi_md = "| ID | name | description |\n|---|---|---|\n| APP.1.1.A1 | BSI Anforderung 1 | Text 1 |\n| APP.1.1.A2 | BSI Anforderung 2 | Text 2 |"
-        mock_data_loader.load_text_file.side_effect = lambda path: {
-            GPP_STRIPPED_MD_PATH: mock_gpp_md,
-            GPP_STRIPPED_ISMS_MD_PATH: "| ID | name | description |\n|---|---|---|",
-            BSI_STRIPPED_MD_PATH: mock_bsi_md,
-        }.get(path, "")
+        mock_data_loader.load_text_file.side_effect = [
+            mock_gpp_md,
+            mock_isms_md,
+            mock_bsi_md,
+        ]
 
         # --- Run the pipeline ---
         with patch('pipeline.stage_matching.app_config', mock_config):

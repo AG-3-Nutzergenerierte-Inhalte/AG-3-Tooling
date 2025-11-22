@@ -21,14 +21,18 @@ class TestStageComponentEnhanced(unittest.IsolatedAsyncioTestCase):
         # Configure logging to suppress output during tests
         logging.getLogger('pipeline.stage_component').setLevel(logging.CRITICAL)
 
+    @patch('pipeline.stage_component.read_text_file')
     @patch('pipeline.stage_component.read_json_file')
     @patch('pipeline.stage_component.write_json_file')
     @patch('pipeline.stage_component.validate_oscal')
     @patch('pipeline.stage_component.read_csv_file')
     @patch('os.path.exists')
-    async def test_generate_detailed_component_enhanced(self, mock_exists, mock_read_csv, mock_validate_oscal, mock_write_json, mock_read_json):
+    async def test_generate_detailed_component_enhanced(self, mock_exists, mock_read_csv, mock_validate_oscal, mock_write_json, mock_read_json, mock_read_text):
         # Mock file existence
         mock_exists.return_value = True
+
+        # Mock read_text_file for markdown
+        mock_read_text.return_value = "| Control ID | Title | Prose |\n|---|---|---|\n| GPP.APP.1.1 | Control 1 | Do this. |\n| GPP.APP.1.2 | Control 2 | Do that. |"
 
         # Mock Data Setup
         baustein_id = "APP.1"
@@ -44,8 +48,8 @@ class TestStageComponentEnhanced(unittest.IsolatedAsyncioTestCase):
                         "id": "APP.1",
                         "title": "Web Applications",
                         "parts": [
-                            {"title": "Introduction", "prose": "Intro text..."},
-                            {"title": "Risks", "prose": "Risk text..."}
+                            {"name": "introduction", "title": "Introduction", "prose": "Intro text..."},
+                            {"name": "risk", "title": "Risks", "prose": "Risk text..."}
                         ],
                         "controls": []
                     }]
@@ -133,9 +137,9 @@ class TestStageComponentEnhanced(unittest.IsolatedAsyncioTestCase):
         mock_ai_client.generate_validated_json_response = AsyncMock(return_value=mock_ai_response)
 
         # Execute
-        mapping = {}
+        # mapping = {} # Removed as it is not in the function signature
         await stage_component.generate_detailed_component(
-            baustein_id, baustein_title, zielobjekt_name, profile_path, mapping, mock_bsi_catalog, mock_gpp_catalog, "output_dir", mock_ai_client
+            baustein_id, baustein_title, zielobjekt_name, profile_path, mock_bsi_catalog, mock_gpp_catalog, "output_dir", mock_ai_client
         )
 
         # Verification

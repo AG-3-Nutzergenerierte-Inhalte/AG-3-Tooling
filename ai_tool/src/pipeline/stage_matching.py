@@ -42,57 +42,6 @@ def _validate_mapping_keys(mapping: Dict[str, str]) -> Dict[str, str]:
     return validated_mapping
 
 
-def _filter_markdown(
-    control_ids: List[str], markdown_content: str
-) -> str:
-    """
-    Filters a markdown table to include only rows with specified IDs.
-
-    This function is more robust than a regex search as it processes the table
-    line by line.
-
-    Args:
-        markdown_content: The full markdown table as a string.
-        ids_to_keep: A set of IDs (e.g., "GPP.1.1", "SYS.1.1.A1") to retain.
-
-    Returns:
-        A string of the filtered markdown table, or an empty string if filtering fails.
-    """
-
-    if not control_ids:
-        return ""
-
-    lines = markdown_content.strip().splitlines()
-
-    if len(lines) < 2:
-        logger.warning("Markdown content is too short to contain a header and separator.")
-        return ""
-
-    header = lines[0]
-    separator = lines[1]
-    
-    # Validate that the separator line looks correct
-    if not separator.strip().startswith('|'):
-        logger.warning("Markdown separator line is malformed.")
-        return ""
-
-    # Efficiently find all relevant rows in a single pass
-    rows = []
-    control_id_set = set(control_ids)
-    for line in lines[2:]:
-        line_trimmed = line.strip()
-        if line_trimmed.startswith('|'):
-            parts = [p.strip() for p in line_trimmed.split('|')]
-            if len(parts) > 2 and parts[1] in control_id_set:
-                rows.append(line)
-
-    if not rows:
-        logger.warning(f"No rows found for control IDs: {control_ids}")
-        return ""
-
-    return "\n".join([header, separator] + rows)
-
-
 async def _process_mapping(
     baustein_id: str,
     zielobjekt_uuid: str,
@@ -132,8 +81,8 @@ async def _process_mapping(
         logger.warning(f"No Anforderungen found for Baustein {baustein_id}. Skipping.")
         return None
 
-    filtered_gpp_md = _filter_markdown(gpp_control_ids, gpp_source_md)
-    filtered_bsi_md = _filter_markdown(anforderung_ids, bsi_stripped_md)
+    filtered_gpp_md = data_parser.filter_markdown(gpp_control_ids, gpp_source_md)
+    filtered_bsi_md = data_parser.filter_markdown(anforderung_ids, bsi_stripped_md)
 
     if not filtered_gpp_md or not filtered_bsi_md:
         logger.error(f"Could not create filtered markdown for Baustein {baustein_id}. Skipping.")
