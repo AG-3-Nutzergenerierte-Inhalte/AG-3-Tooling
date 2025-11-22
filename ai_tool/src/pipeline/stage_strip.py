@@ -141,7 +141,17 @@ def _strip_bsi_file():
 
                     # Check if the control's main group is in the allowed list
                     control_main_group = control_id.split('.')[0]
+
+                    is_allowed = False
                     if control_main_group in ALLOWED_MAIN_GROUPS:
+                        is_allowed = True
+                    else:
+                        for process_baustein in ALLOWED_PROCESS_BAUSTEINE:
+                            if control_id.startswith(process_baustein):
+                                is_allowed = True
+                                break
+
+                    if is_allowed:
                         allowed_controls.append([control_id, title, description])
                     else:
                         isms_controls.append([control_id, title, description])
