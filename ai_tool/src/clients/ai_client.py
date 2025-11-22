@@ -89,13 +89,6 @@ class AiClient:
                 "temperature": API_TEMPERATURE,
             }
 
-            # Enable thinking if using the PRO model (Gemini 3)
-            if model_name == GROUND_TRUTH_MODEL_PRO:
-                # Use a dictionary for thinking_config to avoid import issues if ThinkingConfig type isn't available
-                # thinking_level="high" corresponds to "highest" budget/reasoning for Gemini 3
-                # include_thoughts=True enables the return of thought summaries
-                config_args["thinking_config"] = {"include_thoughts": True, "thinking_level": "high"}
-
             return GenerationConfig(**config_args)
         except Exception as e:
             logger.error(f"Failed to initialize GenerationConfig. Schema might still be incompatible: {e}", exc_info=True)
