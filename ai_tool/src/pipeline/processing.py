@@ -6,7 +6,7 @@ from start to finish, executing each stage in the correct sequence.
 """
 
 import logging
-from pipeline import stage_strip, stage_gpp, stage_match_bausteine, stage_matching, stage_profiles
+from pipeline import stage_strip, stage_gpp, stage_match_bausteine, stage_matching, stage_profiles, stage_component
 
 logger = logging.getLogger(__name__)
 
