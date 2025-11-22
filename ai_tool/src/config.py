@@ -17,7 +17,7 @@ class AppConfig:
         self.gcp_project_id: Optional[str] = os.environ.get("GCP_PROJECT_ID")
         self.bucket_name: Optional[str] = os.environ.get("BUCKET_NAME")
         self.ai_endpoint_id: Optional[str] = os.environ.get("AI_ENDPOINT_ID")
-        self.region: Optional[str] = os.environ.get("REGION", "us-central1")
+        self.region: Optional[str] = os.environ.get("REGION", "global")
         self.source_prefix: Optional[str] = os.environ.get("SOURCE_PREFIX")
         self.output_prefix: Optional[str] = os.environ.get("OUTPUT_PREFIX")
         self.is_test_mode: bool = os.environ.get("TEST", "false").lower() == "true"
