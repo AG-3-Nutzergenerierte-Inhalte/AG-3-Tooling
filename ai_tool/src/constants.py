@@ -55,7 +55,7 @@ OSCAL_COMPONENT_SCHEMA_PATH = os.path.join(REPO_ROOT, "oscal_json_schemas/oscal_
 
 # --- AI Model Configuration ---
 GROUND_TRUTH_MODEL = "gemini-2.5-flash"
-GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-previev"
+GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-preview"
 
 # --- API Configuration ---
 # Constants for external API interactions, such as retry logic parameters.

@@ -23,7 +23,7 @@ def _process_controls_recursively(controls, target_objects_list, isms_list):
         description = "N/A"
         for part in control.get("parts", []):
             if part.get("name") == "statement":
-                description = part.get("prose", "N/A").replace("\n", " ")[:150]
+                description = part.get("prose", "N/A").replace("\n", " ")[:250]
                 break
         uuid = "N/A"
         for prop in control.get("props", []):
@@ -135,7 +135,7 @@ def _strip_bsi_file():
                         if part.get("class") == "maturity-level-defined":
                             for sub_part in part.get("parts", []):
                                 if sub_part.get("name") == "statement":
-                                    description = sub_part.get("prose", "N/A").replace("\n", " ")[:150]
+                                    description = sub_part.get("prose", "N/A").replace("\n", " ")[:250]
                                     break
                             break
 

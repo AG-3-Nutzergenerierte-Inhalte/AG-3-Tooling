@@ -217,7 +217,7 @@ class AiClient:
             if self.config.is_test_mode:
                 logger.debug(f"Attaching {len(gcs_uris)} GCS files to the prompt.")
 
-        logger.debug(f"Prmpt: {contents}")
+        # logger.debug(f"Prmpt: {contents}")
 
         for attempt in range(retries):
             try:
