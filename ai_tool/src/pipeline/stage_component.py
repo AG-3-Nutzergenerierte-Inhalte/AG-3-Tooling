@@ -215,9 +215,6 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
     # The template expects "input list" which we provide as Markdown now
     full_prompt = f"{prompt_template}\n\nContext:\nTitle: {baustein_title}\n{baustein_parts_text}\n\nInput Data (Markdown):\n{filtered_markdown}"
 
-    # Replace all newlines with carriage return + newline as requested
-    full_prompt = full_prompt.replace("\n", "\r\n")
-
     try:
         # Load schema for validation
         response_schema = read_json_file(ENHANCED_CONTROL_RESPONSE_SCHEMA_PATH)
