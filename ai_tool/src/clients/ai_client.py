@@ -89,13 +89,6 @@ class AiClient:
                 "temperature": API_TEMPERATURE,
             }
 
-            # Enable thinking if using the PRO model (Gemini 3)
-            if model_name == GROUND_TRUTH_MODEL_PRO:
-                # Use a dictionary for thinking_config to avoid import issues if ThinkingConfig type isn't available
-                # thinking_level="high" corresponds to "highest" budget/reasoning for Gemini 3
-                # include_thoughts=True enables the return of thought summaries
-                config_args["thinking_config"] = {"include_thoughts": True, "thinking_level": "high"}
-
             return GenerationConfig(**config_args)
         except Exception as e:
             logger.error(f"Failed to initialize GenerationConfig. Schema might still be incompatible: {e}", exc_info=True)
@@ -136,7 +129,42 @@ class AiClient:
         # --- End Robust Finish Reason Check ---
 
         try:
-            response_json = json.loads(response.text)
+            # Robustly extract text from parts, skipping thoughts
+            full_text = ""
+            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    # Check if part is a 'thought' (Vertex AI Thinking models)
+                    # The SDK might expose this as an attribute or we check if text is present.
+                    # 'thought_signature' is specific to internal proto, SDK usually exposes `thought`.
+                    # However, to be safe, we try to access .text. If it fails or is empty, we skip.
+                    try:
+                        # For thinking models, the thought part often has a specific structure.
+                        # We only want the final text.
+                        # Ideally, we should check `part.thought` but attribute names vary by SDK version.
+                        # A robust way is to rely on the fact that the text part DOES have text.
+
+                        # In some SDK versions, accessing .text on a thought part raises an error.
+                        # In others, it returns None or empty.
+                        text_segment = part.text
+                        if text_segment:
+                            full_text += text_segment
+                    except (ValueError, AttributeError):
+                        # This happens if the part has no text (e.g. it's a thought or function call)
+                        # We simply skip it.
+                        continue
+
+            # Fallback to response.text if manual extraction failed (though response.text might be what failed originally)
+            if not full_text:
+                try:
+                    full_text = response.text
+                except Exception:
+                     # If both fail, we can't do anything.
+                     pass
+
+            if not full_text:
+                raise ValueError("No text content found in model response.")
+
+            response_json = json.loads(full_text)
         except json.JSONDecodeError as e:
             # Clean JSON error without the full traceback
             raise ValueError(f"Failed to parse model response as JSON: {str(e).split(':')[0]}")
