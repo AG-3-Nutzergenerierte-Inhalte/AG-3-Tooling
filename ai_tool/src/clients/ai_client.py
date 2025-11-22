@@ -95,81 +95,66 @@ class AiClient:
             raise ValueError(f"Invalid or incompatible GenerationConfig: {e}") from e
 
     def _process_response(self, response) -> Dict[str, Any]:
-        """Processes the model response, handling finish reasons and JSON parsing."""
-        if not response.candidates:
-            raise ValueError("The model response contained no candidates.")
+            """Processes the model response, handling finish reasons, thought parts, and JSON parsing."""
+            if not response.candidates:
+                raise ValueError("The model response contained no candidates.")
 
-        # --- Robust Finish Reason Check ---
-        # We check the integer value of the finish reason enum because accessing .name 
-        # can sometimes cause 'AttributeError' in certain environments (Protobuf conflicts).
-        # Expected values (from GAPIC definition): 1 = STOP, 2 = MAX_TOKENS.
-
-        finish_reason_obj = response.candidates[0].finish_reason
-        try:
-            # Attempt to cast to int (standard behavior for proto.Enum)
-            finish_reason_int = int(finish_reason_obj)
-        except TypeError:
-            logger.error(
-                f"Could not cast finish reason to integer. Type: {type(finish_reason_obj)}. Value: {finish_reason_obj}."
-            )
-            # Raise TypeError to distinguish this specific issue from generic ValueErrors.
-            raise TypeError(f"Could not determine finish reason integer value.")
-
-        if finish_reason_int not in [1, 2]:
-            # Try to get the name for logging, fallback to int.
-            reason_display = f"Code {finish_reason_int}"
+            # --- Robust Finish Reason Check ---
+            finish_reason_obj = response.candidates[0].finish_reason
             try:
-                # We attempt to access .name here only for logging purposes, inside a safe block.
-                if hasattr(finish_reason_obj, 'name') and finish_reason_obj.name:
-                    reason_display = f"{finish_reason_obj.name} (Code {finish_reason_int})"
-            except Exception:
-                pass # Ignore errors during logging fallback
-            
-            raise ValueError(f"Model finished with non-OK reason: {reason_display}")
-        # --- End Robust Finish Reason Check ---
+                finish_reason_int = int(finish_reason_obj)
+            except TypeError:
+                logger.error(
+                    f"Could not cast finish reason to integer. Type: {type(finish_reason_obj)}. Value: {finish_reason_obj}."
+                )
+                raise TypeError(f"Could not determine finish reason integer value.")
 
-        try:
-            # Robustly extract text from parts, skipping thoughts
-            full_text = ""
-            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    # Check if part is a 'thought' (Vertex AI Thinking models)
-                    # The SDK might expose this as an attribute or we check if text is present.
-                    # 'thought_signature' is specific to internal proto, SDK usually exposes `thought`.
-                    # However, to be safe, we try to access .text. If it fails or is empty, we skip.
-                    try:
-                        # For thinking models, the thought part often has a specific structure.
-                        # We only want the final text.
-                        # Ideally, we should check `part.thought` but attribute names vary by SDK version.
-                        # A robust way is to rely on the fact that the text part DOES have text.
-
-                        # In some SDK versions, accessing .text on a thought part raises an error.
-                        # In others, it returns None or empty.
-                        text_segment = part.text
-                        if text_segment:
-                            full_text += text_segment
-                    except (ValueError, AttributeError):
-                        # This happens if the part has no text (e.g. it's a thought or function call)
-                        # We simply skip it.
-                        continue
-
-            # Fallback to response.text if manual extraction failed (though response.text might be what failed originally)
-            if not full_text:
+            if finish_reason_int not in [1, 2]:
+                reason_display = f"Code {finish_reason_int}"
                 try:
-                    full_text = response.text
+                    if hasattr(finish_reason_obj, 'name') and finish_reason_obj.name:
+                        reason_display = f"{finish_reason_obj.name} (Code {finish_reason_int})"
                 except Exception:
-                     # If both fail, we can't do anything.
-                     pass
+                    pass 
+                raise ValueError(f"Model finished with non-OK reason: {reason_display}")
+            # --- End Robust Finish Reason Check ---
 
-            if not full_text:
-                raise ValueError("No text content found in model response.")
+            # --- START: Handle Thinking/Reasoning Parts ---
+            # With 'thinking' enabled, response.text fails because it chokes on the 'thought' part.
+            # We must iterate parts and safely extract only valid text.
+            full_text_parts = []
+            for part in response.candidates[0].content.parts:
+                try:
+                    # Attempt to access the text attribute. 
+                    # The SDK raises ValueError/AttributeError if the part is a 'thought' or 'function_call'
+                    text_content = part.text
+                    if text_content:
+                        full_text_parts.append(text_content)
+                except (ValueError, AttributeError):
+                    # This is the 'thought_signature' or other non-text part; skip it.
+                    logger.debug("Skipping non-text part (likely model thoughts/reasoning).")
+                    continue
+            
+            raw_response_text = "".join(full_text_parts)
+            
+            if not raw_response_text:
+                raise ValueError("Model response contained candidates but no extractable text (only thoughts/empty).")
+            # --- END: Handle Thinking/Reasoning Parts ---
 
-            response_json = json.loads(full_text)
-        except json.JSONDecodeError as e:
-            # Clean JSON error without the full traceback
-            raise ValueError(f"Failed to parse model response as JSON: {str(e).split(':')[0]}")
-        
-        return response_json
+            # Clean Markdown code blocks if present (Thinking models love adding ```json)
+            if raw_response_text.startswith("```json"):
+                raw_response_text = raw_response_text.replace("```json", "").replace("```", "")
+            elif raw_response_text.startswith("```"):
+                raw_response_text = raw_response_text.replace("```", "")
+
+            try:
+                response_json = json.loads(raw_response_text)
+            except json.JSONDecodeError as e:
+                # Clean JSON error without the full traceback
+                logger.error(f"Failed JSON Text: {raw_response_text}") # Log the bad text for debugging
+                raise ValueError(f"Failed to parse model response as JSON: {str(e).split(':')[0]}")
+            
+            return response_json
 
     async def generate_validated_json_response(
         self, 
