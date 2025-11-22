@@ -8,15 +8,22 @@ import urllib.parse
 import os
 import uuid
 import logging
+import json
+import asyncio
 from datetime import datetime, timezone
 
 from constants import *
+from config import app_config
 from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
 from utils.oscal_utils import validate_oscal
 from utils.text_utils import sanitize_filename
+from clients.ai_client import AiClient
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Constants for schema
+ENHANCED_CONTROL_RESPONSE_SCHEMA_PATH = os.path.join(SRC_ROOT, "assets/schemas/enhanced_control_response_schema.json")
 
 def get_component_type(baustein_id: str) -> str:
     """Determines the component type based on the Baustein ID prefix."""
@@ -49,8 +56,54 @@ def get_source_url(local_path: str) -> str:
 
     return f"{base_url}/{encoded_path}"
 
-def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, mapping: dict, bsi_catalog: dict, gpp_catalog: dict, output_dir: str):
-    """Generates the detailed, user-defined component file."""
+def build_oscal_control(control_id: str, title: str, generated_data: dict) -> dict:
+    """Constructs the OSCAL implemented-requirement object from AI generated data."""
+    oscal_parts = []
+    levels = [("Partial", "partial", "1"), ("Foundational", "foundational", "2"), ("Defined", "defined", "3"), ("Enhanced", "enhanced", "4"), ("Comprehensive", "comprehensive", "5")]
+
+    for title_suffix, class_suffix, level_num in levels:
+        statement_key = f"level_{level_num}_statement"
+        guidance_key = f"level_{level_num}_guidance"
+        assessment_key = f"level_{level_num}_assessment"
+
+        statement = generated_data.get(statement_key)
+
+        if statement:
+            oscal_parts.append({
+                "id": f"{control_id}-m{level_num}",
+                "name": "maturity-level-description",
+                "title": f"Maturity Level {level_num}: {title_suffix}",
+                "class": f"maturity-level-{class_suffix}",
+                "parts": [
+                    {"name": "statement", "prose": statement},
+                    {"name": "guidance", "prose": generated_data.get(guidance_key, "")},
+                    {"name": "assessment-method", "prose": generated_data.get(assessment_key, "")}]})
+
+    props_ns = "https://www.bsi.bund.de/ns/grundschutz"
+
+    # Extract props from generated data
+    props = [
+        {"name": "phase", "value": generated_data.get('phase', 'N/A'), "ns": props_ns},
+        {"name": "effective_on_c", "value": str(generated_data.get("effective_on_c", "")).lower(), "ns": props_ns},
+        {"name": "effective_on_i", "value": str(generated_data.get("effective_on_i", "")).lower(), "ns": props_ns},
+        {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a", "")).lower(), "ns": props_ns}
+    ]
+
+    # Add practice if it exists (though not currently in AI schema, keeping for future proofing or if added later)
+    if generated_data.get("practice"):
+         props.append({"name": "practice", "value": generated_data.get("practice"), "ns": props_ns})
+
+    return {
+        "uuid": str(uuid.uuid4()),
+        "control-id": control_id,
+        "description": f"(BSI Baustein context) Implementation of {title}", # Placeholder description, real one is generated inside generate_detailed_component context
+        "class": generated_data.get("class", "Technical"),
+        "props": props,
+        "statements": oscal_parts
+    }
+
+async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, mapping: dict, bsi_catalog: dict, gpp_catalog: dict, output_dir: str, ai_client: AiClient):
+    """Generates the detailed, user-defined component file with AI-enhanced data."""
     sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
     sanitized_baustein_id = sanitize_filename(baustein_id)
     output_filename = f"{sanitized_zielobjekt_name}_{sanitized_baustein_id}-enhanced-component.json"
@@ -64,77 +117,137 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjek
         logger.error(f"Failed to load profile for {baustein_id} from {profile_path}")
         return
 
+    # 1. Identify Target Controls
     gpp_controls_in_profile = profile.get("profile", {}).get("imports", [{}])[0].get("include-controls", [{}])[0].get("with-ids", [])
 
-    bsi_controls_lookup = {}
+    # 2. Extract Baustein Context (Parts)
     bsi_baustein_lookup = {}
     for group in bsi_catalog.get("catalog", {}).get("groups", []):
         for baustein in group.get("groups", []):
             bsi_baustein_lookup[baustein.get("id")] = baustein
-            for control in baustein.get("controls", []):
-                bsi_controls_lookup[control.get("id")] = control
 
+    baustein_key_for_parts = "ISMS.1" if baustein_id == "ISMS" else baustein_id
+    baustein_data = bsi_baustein_lookup.get(baustein_key_for_parts, {})
+    baustein_parts_text = ""
+    component_props = []
+
+    if baustein_data:
+        for part in baustein_data.get("parts", []):
+            title = part.get("title")
+            prose = part.get("prose")
+            if title and prose:
+                baustein_parts_text += f"Part: {title}\nContent: {prose}\n\n"
+                component_props.append({
+                    "name": title.strip().replace("\n", "<BR>"),
+                    "value": prose.strip().replace("\n", "<BR>")
+                })
+
+    # 3. Prepare AI Input for Controls
     gpp_controls_lookup = {}
     for group in gpp_catalog.get("catalog", {}).get("groups", []):
         for control in group.get("controls", []):
             gpp_controls_lookup[control.get("id")] = control
 
-    implemented_reqs = []
+    ai_input_controls = []
+    control_descriptions = {} # Store original descriptions to prepend later
+
     for gpp_control_id in gpp_controls_in_profile:
-        bsi_anforderung_id = next((bsi_id for bsi_id, gpp_id in mapping.items() if gpp_id == gpp_control_id), None)
+        gpp_control_data = gpp_controls_lookup.get(gpp_control_id, {})
 
-        if bsi_anforderung_id and bsi_anforderung_id in bsi_controls_lookup:
-            bsi_control_data = bsi_controls_lookup[bsi_anforderung_id]
-            gpp_control_data = gpp_controls_lookup.get(gpp_control_id, {})
+        prose = ""
+        guidance = ""
+        for part in gpp_control_data.get("parts", []):
+            if part.get("name") == "prose":
+                prose = part.get("prose", "").strip()
+            elif part.get("name") == "guidance":
+                guidance = part.get("prose", "").strip()
 
-            prose = ""
-            guidance = ""
-            for part in gpp_control_data.get("parts", []):
-                if part.get("name") == "prose":
-                    prose = part.get("prose", "").strip().replace("\n", "<BR>")
-                elif part.get("name") == "guidance":
-                    guidance = part.get("prose", "").strip().replace("\n", "<BR>")
+        # Format for AI input
+        ai_input_controls.append({
+            "id": gpp_control_id,
+            "title": gpp_control_data.get("title", ""),
+            "prose": prose,
+            "guidance": guidance
+        })
 
-            description = f"{prose}BR{guidance}" if prose and guidance else prose or guidance
+        # Store for description generation
+        desc_prose = prose.replace("\n", "<BR>")
+        desc_guidance = guidance.replace("\n", "<BR>")
+        control_descriptions[gpp_control_id] = f"{desc_prose}BR{desc_guidance}" if desc_prose and desc_guidance else desc_prose or desc_guidance
 
-            statements = []
-            for part in bsi_control_data.get("parts", []):
-                if part.get("name") == "maturity-level-description":
-                    statement_props = []
-                    for sub_part in part.get("parts", []):
-                        statement_props.append({
-                            "name": sub_part.get("name", "").strip().replace("\n", "<BR>"),
-                            "value": sub_part.get("prose", "").strip().replace("\n", "<BR>")
-                        })
+    # 4. Call AI
+    if not ai_input_controls:
+        logger.warning(f"No controls found for profile {profile_path}. Skipping generation.")
+        return
 
-                    statements.append({
-                        "statement-id": part.get("id", str(uuid.uuid4())),
-                        "uuid": str(uuid.uuid4()),
-                        "description": part.get("title", "No description available.").strip().replace("\n", "<BR>"),
-                        "props": statement_props
-                    })
+    # Construct the full prompt input
+    # Retrieve the prompt template from the config file, if stored there, or hardcode/construct here
+    # The requirement says "store in a text file in assets". But I put it in prompt_config.json as requested.
+    # The AiClient loads prompt_config.json internally for system message, but for this specific prompt
+    # we need to pass the full prompt text (template + data) to generate_validated_json_response.
 
-            implemented_reqs.append({
-                "uuid": str(uuid.uuid4()),
-                "control-id": gpp_control_id,
-                "description": description,
-                "props": bsi_control_data.get("props", []),
-                "statements": statements
-            })
+    # We need to read the prompt template.
+    # Ideally AiClient handles templates, but generate_validated_json_response takes 'prompt' string.
+    # So I will load the template here.
 
-    baustein_key_for_parts = "ISMS.1" if baustein_id == "ISMS" else baustein_id
-    baustein_parts = bsi_baustein_lookup.get(baustein_key_for_parts, {}).get("parts", [])
+    try:
+        prompt_config = read_json_file(PROMPT_CONFIG_PATH)
+        prompt_template = prompt_config.get("generate_enhanced_controls_prompt", "")
+    except Exception as e:
+        logger.error(f"Failed to load prompt config: {e}")
+        return
 
-    component_props = []
-    for part in baustein_parts:
-        title = part.get("title")
-        prose = part.get("prose")
-        if title and prose:
-            component_props.append({
-                "name": title.strip().replace("\n", "<BR>"),
-                "value": prose.strip().replace("\n", "<BR>")
-            })
+    # Combine template with data
+    # The template expects "input list" which we provide as JSON
+    full_prompt = f"{prompt_template}\n\nContext:\nTitle: {baustein_title}\n{baustein_parts_text}\n\nInput Data (JSON):\n{json.dumps(ai_input_controls, ensure_ascii=False)}"
 
+    try:
+        # Load schema for validation
+        response_schema = read_json_file(ENHANCED_CONTROL_RESPONSE_SCHEMA_PATH)
+
+        ai_response = await ai_client.generate_validated_json_response(
+            prompt=full_prompt,
+            json_schema=response_schema,
+            request_context_log=f"EnhancedComponent-{baustein_id}"
+        )
+
+        # ai_response should be a list of objects based on the schema
+        if not isinstance(ai_response, list):
+            logger.error(f"AI response is not a list as expected. Type: {type(ai_response)}")
+            return
+
+    except Exception as e:
+        logger.error(f"AI Generation failed for Baustein {baustein_id}: {e}")
+        return
+
+    # 5. Process AI Response & Build OSCAL
+    implemented_reqs = []
+
+    # Create a map for faster lookup of AI results
+    ai_results_map = {item['id']: item for item in ai_response if 'id' in item}
+
+    for gpp_control_id in gpp_controls_in_profile:
+        generated_data = ai_results_map.get(gpp_control_id)
+
+        if generated_data:
+            control_title = gpp_controls_lookup.get(gpp_control_id, {}).get("title", "")
+
+            # Build the base object
+            oscal_obj = build_oscal_control(gpp_control_id, control_title, generated_data)
+
+            # Enrich description with source info as per requirement
+            original_description = control_descriptions.get(gpp_control_id, "")
+            # Requirement B.3/D.3: "description must be prepended with context about its origin (e.g., (BSI Baustein ID...))"
+            # And "followed by a concatenation of the prose and guidance from the G++ control"
+
+            prefix = f"(BSI Baustein {baustein_id})"
+            oscal_obj["description"] = f"{prefix} {original_description}".strip()
+
+            implemented_reqs.append(oscal_obj)
+        else:
+            logger.warning(f"No AI generated data for control {gpp_control_id}")
+
+    # 6. Final Component Assembly
     component_definition = {
         "component-definition": {
             "uuid": str(uuid.uuid4()),
@@ -219,9 +332,16 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, zielobjekt
     validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
 
 
-def run_stage_component():
+async def run_stage_component():
     """Executes the component definition generation stage."""
     logger.info("Starting Stage: Component Definition Generation")
+
+    # Initialize AI Client
+    try:
+        ai_client = AiClient(app_config)
+    except Exception as e:
+        logger.critical(f"Failed to initialize AI Client: {e}", exc_info=True)
+        sys.exit(1)
 
     output_dir = SDT_COMPONENTS_DE_DIR
     profile_dir = SDT_PROFILES_DIR
@@ -293,7 +413,7 @@ def run_stage_component():
 
         mapping = controls_anforderungen.get(zielobjekt_uuid, {}).get("mapping", {})
 
-        generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, mapping, bsi_catalog, gpp_catalog, output_dir)
+        await generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
         generate_minimal_component(baustein_id, baustein_title, zielobjekt_name, profile_path, output_dir)
 
     logger.info("Processing special ISMS Baustein")
@@ -301,7 +421,7 @@ def run_stage_component():
     isms_baustein_title = "ISMS"
     isms_profile_path = os.path.join(profile_dir, "isms_profile.json")
     isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {})
-    generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir)
+    await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
     generate_minimal_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, output_dir)
 
     generate_zielobjekt_components()
@@ -376,4 +496,4 @@ def generate_zielobjekt_components():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    run_stage_component()
+    asyncio.run(run_stage_component())
