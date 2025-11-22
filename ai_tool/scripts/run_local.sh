@@ -47,6 +47,7 @@ if [[ " $@ " =~ " --clear-all " ]]; then
             echo "Warning: Directory '$dir' not found. Skipping."
         fi
     done
+    cp src/assets/json/prozessbausteine_mapping.json ../Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte/hilfsdateien/
     echo "--- Finished Clearing Files ---"
 fi
 
