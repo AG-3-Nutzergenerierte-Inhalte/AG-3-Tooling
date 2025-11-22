@@ -172,11 +172,13 @@ Diese Stage generiert die finalen OSCAL-Komponentendefinitionen. Eine Komponente
     3.  **Generierung Detaillierter Komponenten (`generate_detailed_component`):**
         *   Es wird eine Komponente erstellt, die den Baustein repräsentiert. Der Typ (z.B. software, hardware) wird basierend auf dem Baustein-Präfix bestimmt (`get_component_type`).
         *   Die Komponente referenziert das Profil als Quelle (`control-implementations` -> `source`).
+        *   **KI-Anreicherung:** Die Prose- und Guidance-Texte aller im Profil referenzierten G++ Kontrollen werden mittels rekursiver Suche (`extract_all_gpp_controls`) aus dem G++ Kompendium extrahiert. Diese Texte dienen zusammen mit den BSI Baustein-Teilen (Parts) als Kontext für eine KI-Anfrage.
+        *   **KI-Generierung:** Die KI generiert für jede Kontrolle erweiterte Inhalte (Maturitätsstufen 1-5, Klassifizierungen).
         *   Für jede implementierte G++ Kontrolle (`implemented-requirements`):
-            *   Die entsprechende BSI Anforderung wird über das Mapping (aus `stage_matching`) identifiziert.
-            *   Details der G++ Kontrolle (Prose, Guidance) werden extrahiert und als Beschreibung verwendet.
-            *   Details der BSI Anforderung (z.B. Beschreibungen der Maturitätsstufen) werden aus dem BSI JSON extrahiert und in die `statements` und `props` der Implementierung eingefügt.
-    4.  **Generierung Minimaler Komponenten (`generate_minimal_component`):** Eine vereinfachte Version, die nur die G++ Kontroll-IDs auflistet, ohne die BSI-Details zu integrieren.
+            *   Die Beschreibung wird aus dem G++ Prose/Guidance Text zusammengesetzt, angereichert mit einem Hinweis auf den BSI Baustein-Kontext.
+            *   Die von der KI generierten Inhalte (Statements für Maturity Levels, Props für Klassifizierungen) werden eingefügt.
+            *   **Wichtig:** Es werden keine Inhalte aus den originalen BSI *Anforderungen* (Controls) verwendet, sondern ausschließlich KI-generierte Inhalte basierend auf den G++ Kontrollen und dem BSI Baustein-Kontext.
+    4.  **Generierung Minimaler Komponenten (`generate_minimal_component`):** Eine vereinfachte Version, die nur die G++ Kontroll-IDs auflistet, ohne die erweiterten KI-Inhalte.
     5.  **Validierung:** Jede generierte Komponentendefinition wird gegen das offizielle OSCAL-Schema validiert (`utils.oscal_utils.validate_oscal`).
 *   **Outputs:**
     *   `components/DE/*-benutzerdefiniert-component.json`: Detaillierte Komponentendefinitionen.
