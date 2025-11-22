@@ -16,6 +16,7 @@ from constants import *
 from constants import GROUND_TRUTH_MODEL_PRO
 from config import app_config
 from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
+from utils.data_parser import extract_all_gpp_controls
 from utils.oscal_utils import validate_oscal
 from utils.text_utils import sanitize_filename
 from clients.ai_client import AiClient
@@ -103,7 +104,7 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         "statements": oscal_parts
     }
 
-async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, mapping: dict, bsi_catalog: dict, gpp_catalog: dict, output_dir: str, ai_client: AiClient):
+async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, bsi_catalog: dict, gpp_catalog: dict, output_dir: str, ai_client: AiClient):
     """Generates the detailed, user-defined component file with AI-enhanced data."""
     sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
     sanitized_baustein_id = sanitize_filename(baustein_id)
@@ -144,10 +145,8 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
                 })
 
     # 3. Prepare AI Input for Controls
-    gpp_controls_lookup = {}
-    for group in gpp_catalog.get("catalog", {}).get("groups", []):
-        for control in group.get("controls", []):
-            gpp_controls_lookup[control.get("id")] = control
+    # Use recursive extraction to find all controls, including nested ones
+    gpp_controls_lookup = extract_all_gpp_controls(gpp_catalog)
 
     ai_input_controls = []
     control_descriptions = {} # Store original descriptions to prepend later
@@ -418,9 +417,9 @@ async def run_stage_component():
             profile_filename = f"{sanitized_zielobjekt_name}_profile.json"
             profile_path = os.path.join(profile_dir, profile_filename)
 
-            mapping = controls_anforderungen.get(zielobjekt_uuid, {}).get("mapping", {})
+            # mapping = controls_anforderungen.get(zielobjekt_uuid, {}).get("mapping", {}) # Unused
 
-            await generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
+            await generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, bsi_catalog, gpp_catalog, output_dir, ai_client)
             generate_minimal_component(baustein_id, baustein_title, zielobjekt_name, profile_path, output_dir)
 
     tasks = []
@@ -434,8 +433,8 @@ async def run_stage_component():
             isms_baustein_id = "ISMS"
             isms_baustein_title = "ISMS"
             isms_profile_path = os.path.join(profile_dir, "isms_profile.json")
-            isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {})
-            await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, isms_mapping, bsi_catalog, gpp_catalog, output_dir, ai_client)
+            # isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {}) # Unused
+            await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, bsi_catalog, gpp_catalog, output_dir, ai_client)
             generate_minimal_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, output_dir)
 
     tasks.append(process_isms_baustein())
