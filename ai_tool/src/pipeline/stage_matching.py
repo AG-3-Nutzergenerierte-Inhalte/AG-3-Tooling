@@ -119,8 +119,13 @@ async def _process_mapping(
 
     # Technical Bausteine are mapped against technical G++ controls.
     # Process Bausteine (ISMS, ORP, etc.) are mapped against ISMS G++ controls.
-    baustein_main_group = baustein_id.split('.')[0]
-    gpp_source_md = gpp_stripped_md if baustein_main_group in ALLOWED_MAIN_GROUPS else gpp_stripped_isms_md
+    baustein_main_group = baustein_id.split(".")[0]
+    gpp_source_md = (
+        gpp_stripped_md
+        if baustein_main_group in ALLOWED_MAIN_GROUPS
+        or baustein_id in ALLOWED_PROCESS_BAUSTEINE
+        else gpp_stripped_isms_md
+    )
 
     anforderung_ids = baustein_anforderungen_map.get(baustein_id, [])
     if not anforderung_ids:

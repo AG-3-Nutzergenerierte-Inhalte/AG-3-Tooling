@@ -25,6 +25,7 @@ GPP_KOMPENDIUM_JSON_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek
 
 # --- Filtering ---
 ALLOWED_MAIN_GROUPS = ["SYS", "INF", "IND", "APP", "NET"]
+ALLOWED_PROCESS_BAUSTEINE = ["OPS.2.2", "OPS.2.3", "OPS.3.2"]
 
 # --- Output to Stand der Technik Submodule File Paths ---
 SDT_OUTPUT_DIR = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte")
@@ -54,7 +55,7 @@ OSCAL_COMPONENT_SCHEMA_PATH = os.path.join(REPO_ROOT, "oscal_json_schemas/oscal_
 
 # --- AI Model Configuration ---
 GROUND_TRUTH_MODEL = "gemini-2.5-flash"
-GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-preview"
+GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-previev"
 
 # --- API Configuration ---
 # Constants for external API interactions, such as retry logic parameters.

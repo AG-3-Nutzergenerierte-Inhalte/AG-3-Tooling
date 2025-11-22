@@ -24,6 +24,33 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 cd "$SCRIPT_DIR/.."
 
+# --- Argument Parsing for --clear-all ---
+if [[ " $@ " =~ " --clear-all " ]]; then
+    echo "--- Clearing Generated Files (--clear-all) ---"
+
+    # Define directories to be cleared
+    # Note: Paths are relative to the project root where this script cd's into.
+    declare -a DIRS_TO_CLEAR=(
+        "../Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte/hilfsdateien"
+        "../Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte/komponenten/DE"
+        "../Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/profile"
+        "../Stand-der-Technik-Bibliothek/Kompendien/Grundschutz++-Kompendium/komponenten"
+    )
+
+    for dir in "${DIRS_TO_CLEAR[@]}"; do
+        if [ -d "$dir" ]; then
+            echo "Clearing contents of '$dir/'..."
+            # Delete all files inside the directory, but not the directory itself.
+            # Use find to handle cases where the directory is empty.
+            rm $dir/*
+        else
+            echo "Warning: Directory '$dir' not found. Skipping."
+        fi
+    done
+    cp src/assets/json/prozessbausteine_mapping.json ../Stand-der-Technik-Bibliothek/Nutzergenerierte-Inhalte/hilfsdateien/
+    echo "--- Finished Clearing Files ---"
+fi
+
 # --- Configuration ---
 # Set the script to exit immediately if any command fails.
 set -e
