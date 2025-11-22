@@ -70,7 +70,7 @@ class AiClient:
             )
         return self._model_cache[model_name]
 
-    def _prepare_generation_config(self, json_schema: Dict[str, Any], model_name: Optional[str] = None) -> GenerationConfig:
+    def _prepare_generation_config(self, json_schema: Dict[str, Any], model_name: Optional[str] = None) -> Dict[str, Any]:
         """Prepares and converts the JSON schema for the GenerationConfig."""
         try:
             schema_for_api = json.loads(json.dumps(json_schema))
@@ -96,9 +96,11 @@ class AiClient:
                 # include_thoughts=True enables the return of thought summaries
                 config_args["thinking_config"] = {"include_thoughts": True, "thinking_level": "high"}
 
-            return GenerationConfig(**config_args)
+            # Return the dictionary directly. The SDK handles it, and it avoids strict validation
+            # errors from the GenerationConfig class if it doesn't support newer fields like 'thinking_config'.
+            return config_args
         except Exception as e:
-            logger.error(f"Failed to initialize GenerationConfig. Schema might still be incompatible: {e}", exc_info=True)
+            logger.error(f"Failed to prepare generation config: {e}", exc_info=True)
             raise ValueError(f"Invalid or incompatible GenerationConfig: {e}") from e
 
     def _process_response(self, response) -> Dict[str, Any]:

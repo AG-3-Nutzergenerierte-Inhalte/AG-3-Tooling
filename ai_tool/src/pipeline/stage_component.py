@@ -104,7 +104,7 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         "statements": oscal_parts
     }
 
-async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, bsi_catalog: dict, gpp_catalog: dict, output_dir: str, ai_client: AiClient):
+async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, bsi_catalog: dict, gpp_controls_lookup: dict, output_dir: str, ai_client: AiClient):
     """Generates the detailed, user-defined component file with AI-enhanced data."""
     sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
     sanitized_baustein_id = sanitize_filename(baustein_id)
@@ -155,9 +155,6 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
                  baustein_parts_text += f"--------------------------------------------------\n## Risks\nContent: {prose}\n\n"
 
     # 3. Prepare AI Input for Controls
-    # Use recursive extraction to find all controls, including nested ones
-    gpp_controls_lookup = extract_all_gpp_controls(gpp_catalog)
-
     control_descriptions = {} # Store original descriptions to prepend later
 
     # Load markdown files for filtering. This is done here but ideally could be passed in.
@@ -416,6 +413,11 @@ async def run_stage_component():
             if baustein.get("id") and baustein.get("title"):
                 bsi_baustein_title_lookup[baustein["id"]] = baustein["title"]
 
+    # Extract G++ controls once for efficiency
+    logger.info("Extracting G++ controls for lookup...")
+    gpp_controls_lookup = extract_all_gpp_controls(gpp_catalog)
+    logger.info(f"Successfully extracted {len(gpp_controls_lookup)} G++ controls.")
+
     # Concurrency control
     sem = asyncio.Semaphore(app_config.max_concurrent_ai_requests)
 
@@ -439,7 +441,7 @@ async def run_stage_component():
 
             # mapping = controls_anforderungen.get(zielobjekt_uuid, {}).get("mapping", {}) # Unused
 
-            await generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, bsi_catalog, gpp_catalog, output_dir, ai_client)
+            await generate_detailed_component(baustein_id, baustein_title, zielobjekt_name, profile_path, bsi_catalog, gpp_controls_lookup, output_dir, ai_client)
             generate_minimal_component(baustein_id, baustein_title, zielobjekt_name, profile_path, output_dir)
 
     tasks = []
@@ -454,7 +456,7 @@ async def run_stage_component():
             isms_baustein_title = "ISMS"
             isms_profile_path = os.path.join(profile_dir, "isms_profile.json")
             # isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {}) # Unused
-            await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, bsi_catalog, gpp_catalog, output_dir, ai_client)
+            await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, bsi_catalog, gpp_controls_lookup, output_dir, ai_client)
             generate_minimal_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, output_dir)
 
     tasks.append(process_isms_baustein())
