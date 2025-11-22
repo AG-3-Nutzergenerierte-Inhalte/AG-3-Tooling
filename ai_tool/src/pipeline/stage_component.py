@@ -75,7 +75,6 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
                 "id": f"{control_id}-m{level_num}",
                 "name": "maturity-level-description",
                 "title": f"Maturity Level {level_num}: {title_suffix}",
-                "class": f"maturity-level-{class_suffix}",
                 "parts": [
                     {"name": "statement", "prose": statement},
                     {"name": "guidance", "prose": generated_data.get(guidance_key, "")},
@@ -85,6 +84,7 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
 
     # Extract props from generated data
     props = [
+        {"name": "control_class", "value": generated_data.get("class", "Technical"), "ns": props_ns},
         {"name": "phase", "value": generated_data.get('phase', 'N/A'), "ns": props_ns},
         {"name": "effective_on_c", "value": str(generated_data.get("effective_on_c", "")).lower(), "ns": props_ns},
         {"name": "effective_on_i", "value": str(generated_data.get("effective_on_i", "")).lower(), "ns": props_ns},
@@ -99,7 +99,6 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         "uuid": str(uuid.uuid4()),
         "control-id": control_id,
         "description": f"(BSI Baustein context) Implementation of {title}", # Placeholder description, real one is generated inside generate_detailed_component context
-        "class": generated_data.get("class", "Technical"),
         "props": props,
         "statements": oscal_parts
     }
@@ -157,18 +156,13 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
     # 3. Prepare AI Input for Controls
     control_descriptions = {} # Store original descriptions to prepend later
 
-    # Load markdown files for filtering. This is done here but ideally could be passed in.
-    # Reading files inside the loop is inefficient if called many times, but we rely on OS caching or we can load it once outside.
-    # Given the function signature, we load it here or assume it's fast enough.
-    # To follow the architecture, we should have loaded these outside, but the function signature doesn't support it yet.
-    # However, for correctness as per instructions, I will read them here or use a cached approach if possible.
-    # I'll read them here for simplicity as per instructions.
+    # Load both markdown files and concatenate them to ensure all controls are available
+    gpp_markdown_content_main = read_text_file(GPP_STRIPPED_MD_PATH) or ""
+    gpp_markdown_content_isms = read_text_file(GPP_STRIPPED_ISMS_MD_PATH) or ""
+    gpp_markdown_content = gpp_markdown_content_main + "\n" + gpp_markdown_content_isms
 
-    gpp_md_path = GPP_STRIPPED_ISMS_MD_PATH if baustein_id == "ISMS" else GPP_STRIPPED_MD_PATH
-    gpp_markdown_content = read_text_file(gpp_md_path)
-
-    if not gpp_markdown_content:
-        logger.error(f"Failed to load markdown content from {gpp_md_path}")
+    if not gpp_markdown_content.strip():
+        logger.error(f"Failed to load any markdown content from {GPP_STRIPPED_MD_PATH} or {GPP_STRIPPED_ISMS_MD_PATH}")
         return
 
     filtered_markdown = filter_markdown(gpp_controls_in_profile, gpp_markdown_content)
@@ -195,15 +189,6 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         return
 
     # Construct the full prompt input
-    # Retrieve the prompt template from the config file, if stored there, or hardcode/construct here
-    # The requirement says "store in a text file in assets". But I put it in prompt_config.json as requested.
-    # The AiClient loads prompt_config.json internally for system message, but for this specific prompt
-    # we need to pass the full prompt text (template + data) to generate_validated_json_response.
-
-    # We need to read the prompt template.
-    # Ideally AiClient handles templates, but generate_validated_json_response takes 'prompt' string.
-    # So I will load the template here.
-
     try:
         prompt_config = read_json_file(PROMPT_CONFIG_PATH)
         prompt_template = prompt_config.get("generate_enhanced_controls_prompt", "")
@@ -212,7 +197,6 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         return
 
     # Combine template with data
-    # The template expects "input list" which we provide as Markdown now
     full_prompt = f"{prompt_template}\n\nContext:\nTitle: {baustein_title}\n{baustein_parts_text}\n\nInput Data (Markdown):\n{filtered_markdown}"
 
     try:
