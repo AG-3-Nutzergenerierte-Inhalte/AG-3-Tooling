@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from constants import *
 from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file
 from utils.oscal_utils import validate_oscal
-from utils.text_utils import sanitize_filename
+from utils.text_utils import sanitize_filename, sanitize_oscal_prop_name
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -102,8 +102,9 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjek
                 if part.get("name") == "maturity-level-description":
                     statement_props = []
                     for sub_part in part.get("parts", []):
+                        name = sub_part.get("name", "").strip().replace("\n", "<BR>")
                         statement_props.append({
-                            "name": sub_part.get("name", "").strip().replace("\n", "<BR>"),
+                            "name": sanitize_oscal_prop_name(name),
                             "value": sub_part.get("prose", "").strip().replace("\n", "<BR>")
                         })
 
@@ -130,8 +131,9 @@ def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjek
         title = part.get("title")
         prose = part.get("prose")
         if title and prose:
+            name = title.strip().replace("\n", "<BR>")
             component_props.append({
-                "name": title.strip().replace("\n", "<BR>"),
+                "name": sanitize_oscal_prop_name(name),
                 "value": prose.strip().replace("\n", "<BR>")
             })
 
