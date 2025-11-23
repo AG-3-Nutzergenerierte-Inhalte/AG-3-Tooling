@@ -10,6 +10,7 @@ import uuid
 import logging
 import json
 import asyncio
+import re
 from datetime import datetime, timezone
 
 from constants import *
@@ -26,6 +27,16 @@ logger = logging.getLogger(__name__)
 
 # Constants for schema
 ENHANCED_CONTROL_RESPONSE_SCHEMA_PATH = os.path.join(SRC_ROOT, "assets/schemas/enhanced_control_response_schema.json")
+
+def normalize_id(id_str):
+    """
+    Normalizes a control ID by removing all characters that are NOT alphanumeric, dot, underscore, or hyphen.
+    This handles invisible characters (like zero-width spaces) and whitespace.
+    """
+    if not id_str:
+        return ""
+    return re.sub(r'[^a-zA-Z0-9._-]', '', str(id_str))
+
 
 def get_component_type(baustein_id: str) -> str:
     """Determines the component type based on the Baustein ID prefix."""
@@ -87,13 +98,13 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
     props_ns = "https://www.bsi.bund.de/ns/grundschutz"
 
     # Extract props from generated data, matching specific user requirements
+    # We use 'or' to handle cases where the key exists but value is None
     props = [
-        {"name": "control_class", "value": generated_data.get("class", "Technical"), "ns": props_ns},
-        {"name": "phase", "value": generated_data.get('phase', 'N/A'), "ns": props_ns},
-        {"name": "practice", "value": generated_data.get("practice"), "ns": props_ns},
-        {"name": "effective_on_c", "value": str(generated_data.get("effective_on_c", "")).lower(), "ns": props_ns},
-        {"name": "effective_on_i", "value": str(generated_data.get("effective_on_i", "")).lower(), "ns": props_ns},
-        {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a", "")).lower(), "ns": props_ns}
+        {"name": "control_class", "value": generated_data.get("class") or "Technical", "ns": props_ns},
+        {"name": "phase", "value": generated_data.get('phase') or 'N/A', "ns": props_ns},
+        {"name": "effective_on_c", "value": str(generated_data.get("effective_on_c") or "").lower(), "ns": props_ns},
+        {"name": "effective_on_i", "value": str(generated_data.get("effective_on_i") or "").lower(), "ns": props_ns},
+        {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a") or "").lower(), "ns": props_ns}
     ]
 
     # Add class if it exists
@@ -236,12 +247,12 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
     # 5. Process AI Response & Build OSCAL
     implemented_reqs = []
 
-    # Create a map for faster lookup of AI results with ID normalization (strip)
+    # Create a map for faster lookup of AI results with ID normalization
     ai_results_map = {}
     ai_ids = []
     for item in ai_response:
         if 'id' in item:
-            clean_id = item['id'].strip()
+            clean_id = normalize_id(item['id'])
             ai_results_map[clean_id] = item
             ai_ids.append(clean_id)
 
@@ -249,7 +260,7 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
 
     for gpp_control_id in gpp_controls_in_profile:
         # Normalize lookup key
-        lookup_id = gpp_control_id.strip()
+        lookup_id = normalize_id(gpp_control_id)
         generated_data = ai_results_map.get(lookup_id)
 
         if generated_data:
