@@ -56,7 +56,7 @@ for attempt in range(retries):
         response_json = self._process_response(response)
         validate(instance=response_json, schema=json_schema)
         return response_json
-    except (google.genai.errors.ClientError, ValueError, TypeError, ValidationError) as e:
+    except (google.genai.errors.ClientErrorcd, ValueError, TypeError, ValidationError) as e:
         wait_time = 2 ** attempt
         # ... (Logging und Wartezeit) ...
         await asyncio.sleep(wait_time)
