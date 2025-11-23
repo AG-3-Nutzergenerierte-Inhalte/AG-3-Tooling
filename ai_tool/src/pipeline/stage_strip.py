@@ -23,7 +23,7 @@ def _process_controls_recursively(controls, target_objects_list, isms_list):
         description = "N/A"
         for part in control.get("parts", []):
             if part.get("name") == "statement":
-                description = part.get("prose", "N/A").replace("\n", " ")[:250]
+                description = part.get("prose", "N/A").replace("\n", " ")[:150]
                 break
         uuid = "N/A"
         for prop in control.get("props", []):
@@ -135,19 +135,19 @@ def _strip_bsi_file():
                         if part.get("class") == "maturity-level-defined":
                             for sub_part in part.get("parts", []):
                                 if sub_part.get("name") == "statement":
-                                    description = sub_part.get("prose", "N/A").replace("\n", " ")[:250]
+                                    description = sub_part.get("prose", "N/A").replace("\n", " ")[:150]
                                     break
                             break
 
                     # Check if the control's main group is in the allowed list
-                    control_main_group = control_id.split('.')[0]
+                    control_main_group = control_id.split('.')[0].upper()
 
                     is_allowed = False
                     if control_main_group in ALLOWED_MAIN_GROUPS:
                         is_allowed = True
                     else:
                         for process_baustein in ALLOWED_PROCESS_BAUSTEINE:
-                            if control_id.startswith(process_baustein):
+                            if control_id.upper().startswith(process_baustein):
                                 is_allowed = True
                                 break
 

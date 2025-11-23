@@ -27,9 +27,11 @@ def find_bausteine_with_prose(bsi_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                         baustein_description = part.get("prose", "")
                         break
 
+                group_id = group.get("id", "").upper()
+                sub_group_id = sub_group.get("id", "").upper()
                 if (
-                    group.get("id") in ALLOWED_MAIN_GROUPS
-                    or sub_group.get("id") in ALLOWED_PROCESS_BAUSTEINE
+                    group_id in ALLOWED_MAIN_GROUPS
+                    or sub_group_id in ALLOWED_PROCESS_BAUSTEINE
                 ):
                     if baustein_description:
                         bausteine_with_prose.append(
@@ -51,15 +53,18 @@ def get_anforderungen_for_bausteine(bsi_data: Dict[str, Any]) -> Dict[str, List[
     for group in catalog.get("groups", []):
         for sub_group in group.get("groups", []):
             baustein_id = sub_group.get("id")
-            if baustein_id and (
-                group.get("id") in ALLOWED_MAIN_GROUPS
-                or baustein_id in ALLOWED_PROCESS_BAUSTEINE
-            ):
-                anforderung_ids = []
-                if "controls" in sub_group:
-                    for control in sub_group["controls"]:
-                        anforderung_ids.append(control["id"])
-                baustein_anforderungen_map[baustein_id] = anforderung_ids
+            if baustein_id:
+                group_id = group.get("id", "").upper()
+                baustein_id_upper = baustein_id.upper()
+                if (
+                    group_id in ALLOWED_MAIN_GROUPS
+                    or baustein_id_upper in ALLOWED_PROCESS_BAUSTEINE
+                ):
+                    anforderung_ids = []
+                    if "controls" in sub_group:
+                        for control in sub_group["controls"]:
+                            anforderung_ids.append(control["id"])
+                    baustein_anforderungen_map[baustein_id] = anforderung_ids
     return baustein_anforderungen_map
 
 logger = logging.getLogger(__name__)
@@ -163,7 +168,7 @@ def parse_bsi_2023_controls(
             bausteine_in_group = main_group.get("groups", [])
             target_list = (
                 parsed_bausteine
-                if main_group.get("id") in ALLOWED_MAIN_GROUPS
+                if main_group.get("id", "").upper() in ALLOWED_MAIN_GROUPS
                 else filtered_out_bausteine
             )
 
