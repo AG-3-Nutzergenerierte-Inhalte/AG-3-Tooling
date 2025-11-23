@@ -20,8 +20,7 @@ from config import app_config
 from utils.file_utils import create_dir_if_not_exists, read_json_file, write_json_file, read_csv_file, read_text_file
 from utils.data_parser import extract_all_gpp_controls, filter_markdown
 from utils.oscal_utils import validate_oscal
-from utils.text_utils import sanitize_filename
-from clients.ai_client import AiClient
+from utils.text_utils import sanitize_filename, sanitize_oscal_prop_name
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -186,25 +185,71 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
     for group in bsi_catalog.get("catalog", {}).get("groups", []):
         for baustein in group.get("groups", []):
             bsi_baustein_lookup[baustein.get("id")] = baustein
+            for control in baustein.get("controls", []):
+                bsi_controls_lookup[control.get("id")] = control
+
+    gpp_controls_lookup = {}
+    for group in gpp_catalog.get("catalog", {}).get("groups", []):
+        for control in group.get("controls", []):
+            gpp_controls_lookup[control.get("id")] = control
+
+    implemented_reqs = []
+    for gpp_control_id in gpp_controls_in_profile:
+        bsi_anforderung_id = next((bsi_id for bsi_id, gpp_id in mapping.items() if gpp_id == gpp_control_id), None)
+
+        if bsi_anforderung_id and bsi_anforderung_id in bsi_controls_lookup:
+            bsi_control_data = bsi_controls_lookup[bsi_anforderung_id]
+            gpp_control_data = gpp_controls_lookup.get(gpp_control_id, {})
+
+            prose = ""
+            guidance = ""
+            for part in gpp_control_data.get("parts", []):
+                if part.get("name") == "prose":
+                    prose = part.get("prose", "").strip().replace("\n", "<BR>")
+                elif part.get("name") == "guidance":
+                    guidance = part.get("prose", "").strip().replace("\n", "<BR>")
+
+            description = f"{prose}BR{guidance}" if prose and guidance else prose or guidance
+
+            statements = []
+            for part in bsi_control_data.get("parts", []):
+                if part.get("name") == "maturity-level-description":
+                    statement_props = []
+                    for sub_part in part.get("parts", []):
+                        name = sub_part.get("name", "").strip().replace("\n", "<BR>")
+                        statement_props.append({
+                            "name": sanitize_oscal_prop_name(name),
+                            "value": sub_part.get("prose", "").strip().replace("\n", "<BR>")
+                        })
+
+                    statements.append({
+                        "statement-id": part.get("id", str(uuid.uuid4())),
+                        "uuid": str(uuid.uuid4()),
+                        "description": part.get("title", "No description available.").strip().replace("\n", "<BR>"),
+                        "props": statement_props
+                    })
+
+            implemented_reqs.append({
+                "uuid": str(uuid.uuid4()),
+                "control-id": gpp_control_id,
+                "description": description,
+                "props": bsi_control_data.get("props", []),
+                "statements": statements
+            })
 
     baustein_key_for_parts = "ISMS.1" if baustein_id == "ISMS" else baustein_id
     baustein_data = bsi_baustein_lookup.get(baustein_key_for_parts, {})
     baustein_parts_text = ""
     component_props = []
-
-    if baustein_data:
-        # Include 'introduction' and 'risk' parts as context
-        for part in baustein_data.get("parts", []):
-            part_name = part.get("name", "")
-            title = part.get("title")
-            prose = part.get("prose")
-
-            # Store props for all parts with title and prose
-            if title and prose:
-                 component_props.append({
-                    "name": title.strip().replace("\n", "<BR>"),
-                    "value": prose.strip().replace("\n", "<BR>")
-                })
+    for part in baustein_parts:
+        title = part.get("title")
+        prose = part.get("prose")
+        if title and prose:
+            name = title.strip().replace("\n", "<BR>")
+            component_props.append({
+                "name": sanitize_oscal_prop_name(name),
+                "value": prose.strip().replace("\n", "<BR>")
+            })
 
             # Specific filtering for context generation
             if part_name == "introduction" and prose:
