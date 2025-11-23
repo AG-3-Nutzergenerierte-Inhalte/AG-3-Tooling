@@ -60,7 +60,7 @@ def get_source_url(local_path: str) -> str:
 
 def build_oscal_control(control_id: str, title: str, generated_data: dict) -> dict:
     """Constructs the OSCAL implemented-requirement object from AI generated data."""
-    maturity_statements = []
+    oscal_statements = []
     levels = [("Partial", "partial", "1"), ("Foundational", "foundational", "2"), ("Defined", "defined", "3"), ("Enhanced", "enhanced", "4"), ("Comprehensive", "comprehensive", "5")]
 
     for title_suffix, class_suffix, level_num in levels:
@@ -68,17 +68,21 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         guidance_key = f"level_{level_num}_guidance"
         assessment_key = f"level_{level_num}_assessment"
 
-        statement = generated_data.get(statement_key)
+        statement_text = generated_data.get(statement_key)
 
-        if statement:
-            maturity_statements.append({
-                "id": f"{control_id}-m{level_num}",
-                "name": "maturity-level-description",
-                "title": f"Maturity Level {level_num}: {title_suffix}",
-                "parts": [
-                    {"name": "statement", "prose": statement},
-                    {"name": "guidance", "prose": generated_data.get(guidance_key, "")},
-                    {"name": "assessment-method", "prose": generated_data.get(assessment_key, "")}]})
+        if statement_text:
+            statement_props = [
+                {"name": "statement", "value": statement_text},
+                {"name": "guidance", "value": generated_data.get(guidance_key, "")},
+                {"name": "assessment-method", "value": generated_data.get(assessment_key, "")}
+            ]
+
+            oscal_statements.append({
+                "statement-id": f"{control_id}-m{level_num}",
+                "uuid": str(uuid.uuid4()),
+                "description": f"Maturity Level {level_num}: {title_suffix}",
+                "props": statement_props
+            })
 
     props_ns = "https://www.bsi.bund.de/ns/grundschutz"
 
@@ -92,12 +96,20 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a", "")).lower(), "ns": props_ns}
     ]
 
+    # Add class if it exists
+    if generated_data.get("class"):
+         props.append({"name": "class", "value": generated_data.get("class"), "ns": props_ns})
+
+    # Add practice if it exists (though not currently in AI schema, keeping for future proofing or if added later)
+    if generated_data.get("practice"):
+         props.append({"name": "practice", "value": generated_data.get("practice"), "ns": props_ns})
+
     return {
         "uuid": str(uuid.uuid4()),
         "control-id": control_id,
         "description": f"(BSI Baustein context) Implementation of {title}", # Placeholder description, real one is generated inside generate_detailed_component context
         "props": props,
-        "statements": maturity_statements
+        "statements": oscal_statements
     }
 
 async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, bsi_catalog: dict, gpp_controls_lookup: dict, output_dir: str, ai_client: AiClient):
@@ -117,6 +129,7 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
 
     # 1. Identify Target Controls
     gpp_controls_in_profile = profile.get("profile", {}).get("imports", [{}])[0].get("include-controls", [{}])[0].get("with-ids", [])
+    logger.debug(f"Expected controls for Baustein {baustein_id}: {gpp_controls_in_profile}")
 
     # 2. Extract Baustein Context (Parts)
     bsi_baustein_lookup = {}
@@ -220,11 +233,21 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
     # 5. Process AI Response & Build OSCAL
     implemented_reqs = []
 
-    # Create a map for faster lookup of AI results
-    ai_results_map = {item['id']: item for item in ai_response if 'id' in item}
+    # Create a map for faster lookup of AI results with ID normalization (strip)
+    ai_results_map = {}
+    ai_ids = []
+    for item in ai_response:
+        if 'id' in item:
+            clean_id = item['id'].strip()
+            ai_results_map[clean_id] = item
+            ai_ids.append(clean_id)
+
+    logger.debug(f"AI returned data for {len(ai_ids)} controls. IDs: {ai_ids}")
 
     for gpp_control_id in gpp_controls_in_profile:
-        generated_data = ai_results_map.get(gpp_control_id)
+        # Normalize lookup key
+        lookup_id = gpp_control_id.strip()
+        generated_data = ai_results_map.get(lookup_id)
 
         if generated_data:
             control_title = gpp_controls_lookup.get(gpp_control_id, {}).get("title", "")
@@ -242,7 +265,7 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
 
             implemented_reqs.append(oscal_obj)
         else:
-            logger.warning(f"No AI generated data for control {gpp_control_id}")
+            logger.warning(f"No AI generated data for control {gpp_control_id} (Looked for '{lookup_id}' in AI response)")
 
     # 6. Final Component Assembly
     component_definition = {
