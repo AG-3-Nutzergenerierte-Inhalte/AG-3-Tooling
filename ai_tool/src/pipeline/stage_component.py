@@ -71,7 +71,7 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         statement = generated_data.get(statement_key)
 
         if statement:
-            oscal_parts.append({
+            maturity_statements.append({
                 "id": f"{control_id}-m{level_num}",
                 "name": "maturity-level-description",
                 "title": f"Maturity Level {level_num}: {title_suffix}",
