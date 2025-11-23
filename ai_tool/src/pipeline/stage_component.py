@@ -107,14 +107,6 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a") or "").lower(), "ns": props_ns}
     ]
 
-    # Add class if it exists
-    if generated_data.get("class"):
-         props.append({"name": "class", "value": generated_data.get("class"), "ns": props_ns})
-
-    # Add practice if it exists (though not currently in AI schema, keeping for future proofing or if added later)
-    if generated_data.get("practice"):
-         props.append({"name": "practice", "value": generated_data.get("practice"), "ns": props_ns})
-
     return {
         "uuid": str(uuid.uuid4()),
         "control-id": control_id,
