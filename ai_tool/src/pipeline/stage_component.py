@@ -132,7 +132,8 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
 
     # 1. Identify Target Controls
     gpp_controls_in_profile = profile.get("profile", {}).get("imports", [{}])[0].get("include-controls", [{}])[0].get("with-ids", [])
-    logger.debug(f"Expected controls for Baustein {baustein_id}: {gpp_controls_in_profile}")
+    # max debug
+    # logger.debug(f"Expected controls for Baustein {baustein_id}: {gpp_controls_in_profile}")
 
     # 2. Extract Baustein Context (Parts)
     bsi_baustein_lookup = {}
@@ -225,7 +226,7 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         )
 
         # max logging
-        logger.debug(f"AI response: {ai_response}")
+        # logger.debug(f"AI response: {ai_response}")
 
         # ai_response should be a list of objects based on the schema
         if not isinstance(ai_response, list):
