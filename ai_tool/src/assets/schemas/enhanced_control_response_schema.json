@@ -56,6 +56,11 @@
         ],
         "description": "ISMS lifecycle phase."
       },
+      "level": {
+        "type": "string",
+        "description": "Protection Level / Maturity Requirement",
+        "enum": ["1", "2", "3"]
+      },
       "level_1_statement": { "type": "string" },
       "level_1_guidance": { "type": "string" },
       "level_1_assessment": { "type": "string" },

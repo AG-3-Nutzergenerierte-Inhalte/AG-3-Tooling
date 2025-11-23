@@ -60,7 +60,7 @@ def get_source_url(local_path: str) -> str:
 
 def build_oscal_control(control_id: str, title: str, generated_data: dict) -> dict:
     """Constructs the OSCAL implemented-requirement object from AI generated data."""
-    oscal_parts = []
+    maturity_statements = []
     levels = [("Partial", "partial", "1"), ("Foundational", "foundational", "2"), ("Defined", "defined", "3"), ("Enhanced", "enhanced", "4"), ("Comprehensive", "comprehensive", "5")]
 
     for title_suffix, class_suffix, level_num in levels:
@@ -71,29 +71,26 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         statement = generated_data.get(statement_key)
 
         if statement:
-            oscal_parts.append({
-                "id": f"{control_id}-m{level_num}",
-                "name": "maturity-level-description",
-                "title": f"Maturity Level {level_num}: {title_suffix}",
-                "class": f"maturity-level-{class_suffix}",
-                "parts": [
-                    {"name": "statement", "prose": statement},
-                    {"name": "guidance", "prose": generated_data.get(guidance_key, "")},
-                    {"name": "assessment-method", "prose": generated_data.get(assessment_key, "")}]})
+            maturity_statements.append({
+                "statement-id": f"{control_id}-m{level_num}",
+                "uuid": str(uuid.uuid4()),
+                "description": f"Maturity Level {level_num}: {title_suffix}",
+                "props": [
+                    {"name": "statement", "value": statement},
+                    {"name": "guidance", "value": generated_data.get(guidance_key, "")},
+                    {"name": "assessment-method", "value": generated_data.get(assessment_key, "")}]})
 
     props_ns = "https://www.bsi.bund.de/ns/grundschutz"
 
-    # Extract props from generated data
+    # Extract props from generated data, matching specific user requirements
     props = [
+        {"name": "level", "value": generated_data.get('level', 'N/A'), "ns": props_ns},
         {"name": "phase", "value": generated_data.get('phase', 'N/A'), "ns": props_ns},
+        {"name": "practice", "value": generated_data.get("practice"), "ns": props_ns},
         {"name": "effective_on_c", "value": str(generated_data.get("effective_on_c", "")).lower(), "ns": props_ns},
         {"name": "effective_on_i", "value": str(generated_data.get("effective_on_i", "")).lower(), "ns": props_ns},
         {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a", "")).lower(), "ns": props_ns}
     ]
-
-    # Add practice if it exists (though not currently in AI schema, keeping for future proofing or if added later)
-    if generated_data.get("practice"):
-         props.append({"name": "practice", "value": generated_data.get("practice"), "ns": props_ns})
 
     return {
         "uuid": str(uuid.uuid4()),
@@ -101,7 +98,7 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         "description": f"(BSI Baustein context) Implementation of {title}", # Placeholder description, real one is generated inside generate_detailed_component context
         "class": generated_data.get("class", "Technical"),
         "props": props,
-        "statements": oscal_parts
+        "statements": maturity_statements
     }
 
 async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, bsi_catalog: dict, gpp_controls_lookup: dict, output_dir: str, ai_client: AiClient):
