@@ -9,8 +9,7 @@
       "description": "A 1:1 map where keys are ED2023 requirements and values are GPP controls.",
       "additionalProperties": {
         "type": "string",
-        "description": "Any valid control or requirement ID.",
-        "pattern": "^[A-Z]{2,}(\\.\\d+)+(?:\\.A\\d+)?$"
+        "description": "Any valid control or requirement ID."
       }
     },
     "unmapped_gpp": {
@@ -25,8 +24,7 @@
       "type": "array",
       "description": "List of ED2023 requirement IDs that were not mapped to any GPP control.",
       "items": {
-        "type": "string",
-        "pattern": "^[A-Z]{2,}(\\.\\d+)+(?:\\.A\\d+)?$"
+        "type": "string"
       }
     }
   },

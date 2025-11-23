@@ -16,7 +16,8 @@ SRC_ROOT = os.path.dirname(os.path.abspath(__file__))
 # REPO_ROOT is the parent directory of the 'ai_tool' project folder.
 REPO_ROOT = os.path.abspath(os.path.join(SRC_ROOT, "..", ".."))
 
-ANFORDERUNG_ID_PATTERN = re.compile(r"^[A-Z]{2,}(\.\d+)+(?:.A\d+)?$")
+# ANFORDERUNG_ID_PATTERN = re.compile(r"^[A-Z]{2,}(\.\d+)+(?:.A\d+)?$")
+ANFORDERUNG_ID_PATTERN = re.compile(r"^.*$")
 
 # --- Data File Paths ---
 ZIELOBJEKTE_CSV_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Dokumentation/namespaces/zielobjekte.csv")

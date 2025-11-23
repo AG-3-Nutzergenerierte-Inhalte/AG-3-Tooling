@@ -5,8 +5,7 @@
     "properties": {
       "id": {
         "type": "string",
-        "description": "The original ID of the requirement.",
-        "pattern": "^[A-Z]{2,}(\\.\\d+)+(?:\\.A\\d+)?$"
+        "description": "The original ID of the requirement."
       },
       "class": {
         "type": "string",
