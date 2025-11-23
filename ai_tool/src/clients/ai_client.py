@@ -2,6 +2,7 @@ import logging
 import json
 import asyncio
 import datetime
+import httpx
 from typing import List, Dict, Any, Optional
 
 # New SDK Imports
@@ -199,8 +200,9 @@ class AiClient:
                 logger.info(f"[{request_context_log}] Successfully generated and validated JSON on attempt {attempt + 1}.")
                 return response_json
 
-            except (errors.ClientError, ValueError, TypeError, ValidationError) as e:
+            except (errors.ClientError, ValueError, TypeError, ValidationError, httpx.ConnectError, httpx.TimeoutException) as e:
                 # errors.ClientError covers most API-level issues in the new SDK
+                # httpx.ConnectError and httpx.TimeoutException cover transient network/timeout issues
                 wait_time = 2 ** attempt
                 if attempt == retries - 1:
                     logger.critical(f"[{request_context_log}] AI generation failed after all {retries} retries.", exc_info=True)
