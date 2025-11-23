@@ -33,7 +33,7 @@ def sanitize_oscal_prop_name(name: str) -> str:
         return "_"
 
     # Replace invalid characters (anything not a Unicode letter, number, dot, hyphen, or underscore) with an underscore.
-    sanitized_name = re.sub(r'[^\p{L}\p{N}._-]', '_', name)
+    sanitized_name = re.sub(r'[^\w.-]', '_', name)
 
     # Ensure the name starts with a Unicode letter or underscore.
     if not re.match(r'^[\p{L}_]', sanitized_name):
