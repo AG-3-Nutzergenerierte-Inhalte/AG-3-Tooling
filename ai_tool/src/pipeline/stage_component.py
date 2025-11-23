@@ -202,7 +202,7 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
             # Store props for all parts with title and prose
             if title and prose:
                  component_props.append({
-                    "name": sanitize_oscal_prop_name(name),
+                    "name": sanitize_oscal_prop_name(title),
                     "value": prose.strip().replace("\n", "<BR>")
                 })
 
