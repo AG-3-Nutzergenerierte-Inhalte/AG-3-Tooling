@@ -60,7 +60,7 @@ def get_source_url(local_path: str) -> str:
 
 def build_oscal_control(control_id: str, title: str, generated_data: dict) -> dict:
     """Constructs the OSCAL implemented-requirement object from AI generated data."""
-    oscal_parts = []
+    maturity_statements = []
     levels = [("Partial", "partial", "1"), ("Foundational", "foundational", "2"), ("Defined", "defined", "3"), ("Enhanced", "enhanced", "4"), ("Comprehensive", "comprehensive", "5")]
 
     for title_suffix, class_suffix, level_num in levels:
@@ -82,25 +82,22 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
 
     props_ns = "https://www.bsi.bund.de/ns/grundschutz"
 
-    # Extract props from generated data
+    # Extract props from generated data, matching specific user requirements
     props = [
         {"name": "control_class", "value": generated_data.get("class", "Technical"), "ns": props_ns},
         {"name": "phase", "value": generated_data.get('phase', 'N/A'), "ns": props_ns},
+        {"name": "practice", "value": generated_data.get("practice"), "ns": props_ns},
         {"name": "effective_on_c", "value": str(generated_data.get("effective_on_c", "")).lower(), "ns": props_ns},
         {"name": "effective_on_i", "value": str(generated_data.get("effective_on_i", "")).lower(), "ns": props_ns},
         {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a", "")).lower(), "ns": props_ns}
     ]
-
-    # Add practice if it exists (though not currently in AI schema, keeping for future proofing or if added later)
-    if generated_data.get("practice"):
-         props.append({"name": "practice", "value": generated_data.get("practice"), "ns": props_ns})
 
     return {
         "uuid": str(uuid.uuid4()),
         "control-id": control_id,
         "description": f"(BSI Baustein context) Implementation of {title}", # Placeholder description, real one is generated inside generate_detailed_component context
         "props": props,
-        "statements": oscal_parts
+        "statements": maturity_statements
     }
 
 async def generate_detailed_component(baustein_id: str, baustein_title: str, zielobjekt_name: str, profile_path: str, bsi_catalog: dict, gpp_controls_lookup: dict, output_dir: str, ai_client: AiClient):
