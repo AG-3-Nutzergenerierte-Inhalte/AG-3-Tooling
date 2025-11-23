@@ -55,19 +55,19 @@ OSCAL_COMPONENT_SCHEMA_PATH = os.path.join(REPO_ROOT, "oscal_json_schemas/oscal_
 
 # --- AI Model Configuration ---
 GROUND_TRUTH_MODEL = "gemini-2.5-flash"
-GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-previev"
+GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-preview"
 
 # --- API Configuration ---
 # Constants for external API interactions, such as retry logic parameters.
 API_MAX_RETRIES = 5
 API_RETRY_BACKOFF_FACTOR = 2
 API_RETRY_JITTER = 0.5  # 50% jitter
-API_TEMPERATURE = 0.2
+API_TEMPERATURE = 1
 API_MAX_OUTPUT_TOKEN = 65536
 
 # --- Logging ---
 LOG_LEVEL_TEST = "DEBUG"
-LOG_LEVEL_PRODUCTION = "DEBUG"
+LOG_LEVEL_PRODUCTION = "INFO"
 THIRD_PARTY_LOG_LEVEL_PRODUCTION = "WARNING"
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 

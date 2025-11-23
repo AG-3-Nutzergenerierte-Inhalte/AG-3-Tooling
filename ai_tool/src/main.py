@@ -48,7 +48,7 @@ async def main() -> None:
         elif args.stage == "stage_profiles":
             stage_profiles.run_stage_profiles()
         elif args.stage == "stage_component":
-            stage_component.run_stage_component()
+            await stage_component.run_stage_component()
     else:
         logger.info("No stage specified. Starting full pipeline execution...")
         await processing.run_full_pipeline()

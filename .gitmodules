@@ -1,6 +1,3 @@
-[submodule "BSI-GS-Benutzerdefinierte-Edition23-OSCAL"]
-	path = BSI-GS-Benutzerdefinierte-Edition23-OSCAL
-	url = git@github.com:NTTDATA-DACH/BSI-GS-Benutzerdefinierte-Edition23-OSCAL.git
 [submodule "Stand-der-Technik-Bibliothek"]
 	path = Stand-der-Technik-Bibliothek
 	url = git@github.com:AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek.git

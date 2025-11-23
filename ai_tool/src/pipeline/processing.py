@@ -50,7 +50,7 @@ async def run_full_pipeline() -> None:
         # Stage 5: Generate OSCAL components  for each Zielobjekt.
         logger.info("--- STAGE: COMPONENTS ---")
         logger.info("Starting: Generating OSCAL components.")
-        stage_component.run_stage_component()
+        await stage_component.run_stage_component()
         logger.info("--- STAGE: COMPONENTS - COMPLETE ---")
 
 

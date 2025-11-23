@@ -27,9 +27,11 @@ def find_bausteine_with_prose(bsi_data: Dict[str, Any]) -> List[Dict[str, Any]]:
                         baustein_description = part.get("prose", "")
                         break
 
+                group_id = group.get("id", "").upper()
+                sub_group_id = sub_group.get("id", "").upper()
                 if (
-                    group.get("id") in ALLOWED_MAIN_GROUPS
-                    or sub_group.get("id") in ALLOWED_PROCESS_BAUSTEINE
+                    group_id in ALLOWED_MAIN_GROUPS
+                    or sub_group_id in ALLOWED_PROCESS_BAUSTEINE
                 ):
                     if baustein_description:
                         bausteine_with_prose.append(
@@ -51,15 +53,18 @@ def get_anforderungen_for_bausteine(bsi_data: Dict[str, Any]) -> Dict[str, List[
     for group in catalog.get("groups", []):
         for sub_group in group.get("groups", []):
             baustein_id = sub_group.get("id")
-            if baustein_id and (
-                group.get("id") in ALLOWED_MAIN_GROUPS
-                or baustein_id in ALLOWED_PROCESS_BAUSTEINE
-            ):
-                anforderung_ids = []
-                if "controls" in sub_group:
-                    for control in sub_group["controls"]:
-                        anforderung_ids.append(control["id"])
-                baustein_anforderungen_map[baustein_id] = anforderung_ids
+            if baustein_id:
+                group_id = group.get("id", "").upper()
+                baustein_id_upper = baustein_id.upper()
+                if (
+                    group_id in ALLOWED_MAIN_GROUPS
+                    or baustein_id_upper in ALLOWED_PROCESS_BAUSTEINE
+                ):
+                    anforderung_ids = []
+                    if "controls" in sub_group:
+                        for control in sub_group["controls"]:
+                            anforderung_ids.append(control["id"])
+                    baustein_anforderungen_map[baustein_id] = anforderung_ids
     return baustein_anforderungen_map
 
 logger = logging.getLogger(__name__)
@@ -163,7 +168,7 @@ def parse_bsi_2023_controls(
             bausteine_in_group = main_group.get("groups", [])
             target_list = (
                 parsed_bausteine
-                if main_group.get("id") in ALLOWED_MAIN_GROUPS
+                if main_group.get("id", "").upper() in ALLOWED_MAIN_GROUPS
                 else filtered_out_bausteine
             )
 
@@ -260,3 +265,97 @@ def parse_gpp_kompendium_controls(
     logger.debug(f"Successfully mapped {len(zielobjekt_to_controls_map)} Zielobjekte to controls.")
     logger.debug(f"Successfully parsed {len(gpp_control_titles)} G++ control titles.")
     return zielobjekt_to_controls_map, gpp_control_titles
+
+
+def extract_all_gpp_controls(gpp_kompendium_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """
+    Recursively extracts all controls from the G++ Kompendium data into a flat dictionary.
+
+    Args:
+        gpp_kompendium_data: The loaded G++ Kompendium JSON data.
+
+    Returns:
+        A dictionary mapping Control IDs to their full Control objects.
+    """
+    logger.debug("Recursively extracting all G++ controls...")
+    all_controls = {}
+
+    def _traverse(controls_list: List[Dict[str, Any]]):
+        for control in controls_list:
+            control_id = control.get("id")
+            if control_id:
+                all_controls[control_id] = control
+
+            if "controls" in control and control["controls"]:
+                _traverse(control["controls"])
+
+    def _traverse_group(group_list: List[Dict[str, Any]]):
+        for group in group_list:
+            # Extract controls from the current group
+            if group.get("controls"):
+                _traverse(group["controls"])
+
+            # Recursively process subgroups
+            if group.get("groups"):
+                _traverse_group(group["groups"])
+
+    try:
+        # Start traversal from the top-level groups
+        groups = gpp_kompendium_data.get("catalog", {}).get("groups", [])
+        _traverse_group(groups)
+
+    except Exception as e:
+        logger.error(f"Failed to extract all G++ controls due to error: {e}")
+        raise
+
+    logger.debug(f"Successfully extracted {len(all_controls)} G++ controls.")
+    return all_controls
+
+
+def filter_markdown(control_ids: List[str], markdown_content: str) -> str:
+    """
+    Filters a markdown table to include only rows with specified IDs.
+
+    This function is more robust than a regex search as it processes the table
+    line by line.
+
+    Args:
+        control_ids: A list of IDs (e.g., "GPP.1.1", "SYS.1.1.A1") to retain.
+        markdown_content: The full markdown table as a string.
+
+    Returns:
+        A string of the filtered markdown table, or an empty string if filtering fails.
+    """
+
+    if not control_ids:
+        return ""
+
+    lines = markdown_content.strip().splitlines()
+
+    if len(lines) < 2:
+        logger.warning("Markdown content is too short to contain a header and separator.")
+        return ""
+
+    header = lines[0]
+    separator = lines[1]
+
+    # Validate that the separator line looks correct
+    if not separator.strip().startswith('|'):
+        logger.warning("Markdown separator line is malformed.")
+        return ""
+
+    # Efficiently find all relevant rows in a single pass
+    rows = []
+    control_id_set = set(control_ids)
+    for line in lines[2:]:
+        line_trimmed = line.strip()
+        if line_trimmed.startswith('|'):
+            parts = [p.strip() for p in line_trimmed.split('|')]
+            if len(parts) > 2 and parts[1] in control_id_set:
+                rows.append(line)
+
+    if not rows:
+        logger.warning(f"No rows found for control IDs: {control_ids}")
+        return ""
+
+    return "\n".join([header, separator] + rows)
