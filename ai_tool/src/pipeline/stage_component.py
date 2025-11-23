@@ -11,6 +11,7 @@ import logging
 import json
 import asyncio
 import re
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from constants import *
@@ -36,6 +37,51 @@ def normalize_id(id_str):
     if not id_str:
         return ""
     return re.sub(r'[^a-zA-Z0-9._-]', '', str(id_str))
+
+def chunk_controls(control_ids: list, max_chunk_size: int = 50) -> list:
+    """
+    Chunks control IDs first by their prefix (e.g., 'KONF', 'OPS'),
+    and then splits large groups into smaller chunks of max_chunk_size.
+
+    Args:
+        control_ids: List of control ID strings.
+        max_chunk_size: Maximum size of any single chunk.
+
+    Returns:
+        A list of lists, where each inner list is a chunk of control IDs.
+    """
+    # 1. Sort simply to have deterministic order
+    sorted_ids = sorted(control_ids)
+
+    # 2. Group by prefix
+    grouped = defaultdict(list)
+    for cid in sorted_ids:
+        # Prefix is usually the part before the first dot.
+        # E.g. "KONF.1.2" -> "KONF"
+        if '.' in cid:
+            prefix = cid.split('.')[0]
+        else:
+            # Fallback for weird IDs, treat whole ID as prefix or "misc"
+            prefix = cid
+        grouped[prefix].append(cid)
+
+    final_chunks = []
+
+    # 3. Process groups
+    # Sort prefixes to ensure deterministic chunk order
+    for prefix in sorted(grouped.keys()):
+        group_ids = grouped[prefix]
+
+        # If group is small enough, keep it whole
+        if len(group_ids) <= max_chunk_size:
+            final_chunks.append(group_ids)
+        else:
+            # Split into sub-chunks
+            for i in range(0, len(group_ids), max_chunk_size):
+                sub_chunk = group_ids[i : i + max_chunk_size]
+                final_chunks.append(sub_chunk)
+
+    return final_chunks
 
 
 def get_component_type(baustein_id: str) -> str:
@@ -178,8 +224,6 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         logger.error(f"Failed to load any markdown content from {GPP_STRIPPED_MD_PATH} or {GPP_STRIPPED_ISMS_MD_PATH}")
         return
 
-    filtered_markdown = filter_markdown(gpp_controls_in_profile, gpp_markdown_content)
-
     for gpp_control_id in gpp_controls_in_profile:
         gpp_control_data = gpp_controls_lookup.get(gpp_control_id, {})
 
@@ -196,45 +240,56 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         desc_guidance = guidance.replace("\n", "<BR>")
         control_descriptions[gpp_control_id] = f"{desc_prose}BR{desc_guidance}" if desc_prose and desc_guidance else desc_prose or desc_guidance
 
-    # 4. Call AI
-    if not filtered_markdown:
-        logger.warning(f"No controls found (or filtered) for profile {profile_path}. Skipping generation.")
-        return
 
-    # Construct the full prompt input
+    # 4. Chunking & Parallel AI Processing
+    control_chunks = chunk_controls(gpp_controls_in_profile)
+    logger.info(f"Processing Baustein {baustein_id} in {len(control_chunks)} chunks.")
+
+    # Prepare tasks for each chunk
+    chunk_tasks = []
+
     try:
         prompt_config = read_json_file(PROMPT_CONFIG_PATH)
         prompt_template = prompt_config.get("generate_enhanced_controls_prompt", "")
+        response_schema = read_json_file(ENHANCED_CONTROL_RESPONSE_SCHEMA_PATH)
     except Exception as e:
-        logger.error(f"Failed to load prompt config: {e}")
+        logger.error(f"Failed to load prompt config or schema: {e}")
         return
 
-    # Combine template with data
-    full_prompt = f"{prompt_template}\n\nContext:\nTitle: {baustein_title}\n{baustein_parts_text}\n\nInput Data (Markdown):\n{filtered_markdown}"
+    async def process_chunk(chunk_ids, chunk_index):
+        chunk_filtered_markdown = filter_markdown(chunk_ids, gpp_markdown_content)
+        if not chunk_filtered_markdown:
+            logger.warning(f"No markdown found for chunk {chunk_index} of {baustein_id}. Skipping this chunk.")
+            return []
 
-    try:
-        # Load schema for validation
-        response_schema = read_json_file(ENHANCED_CONTROL_RESPONSE_SCHEMA_PATH)
+        full_prompt = f"{prompt_template}\n\nContext:\nTitle: {baustein_title}\n{baustein_parts_text}\n\nInput Data (Markdown):\n{chunk_filtered_markdown}"
 
-        # Use GROUND_TRUTH_MODEL_PRO for this complex task as requested
-        ai_response = await ai_client.generate_validated_json_response(
+        response = await ai_client.generate_validated_json_response(
             prompt=full_prompt,
             json_schema=response_schema,
-            request_context_log=f"EnhancedComponent-{baustein_id}",
+            request_context_log=f"EnhancedComponent-{baustein_id}-Chunk{chunk_index}",
             model_override=GROUND_TRUTH_MODEL_PRO
         )
+        return response
 
-        # max logging
-        logger.debug(f"AI response: {ai_response}")
+    for idx, chunk in enumerate(control_chunks):
+        chunk_tasks.append(process_chunk(chunk, idx))
 
-        # ai_response should be a list of objects based on the schema
-        if not isinstance(ai_response, list):
-            logger.error(f"AI response is not a list as expected. Type: {type(ai_response)}")
-            return
-
+    try:
+        # Gather all results. return_exceptions=False means if any fail, it raises immediately.
+        chunk_results = await asyncio.gather(*chunk_tasks)
     except Exception as e:
-        logger.error(f"AI Generation failed for Baustein {baustein_id}: {e}")
+        logger.error(f"AI Generation failed for one or more chunks of Baustein {baustein_id}: {e}")
+        # Fail the entire Baustein processing as requested
         return
+
+    # Flatten results
+    ai_response = []
+    for res in chunk_results:
+        if isinstance(res, list):
+            ai_response.extend(res)
+        elif res: # Handle cases where it might be None or weird structure
+             logger.warning(f"Unexpected response type from chunk: {type(res)}")
 
     # 5. Process AI Response & Build OSCAL
     implemented_reqs = []
