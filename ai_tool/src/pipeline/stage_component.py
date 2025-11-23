@@ -221,6 +221,9 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
             model_override=GROUND_TRUTH_MODEL_PRO
         )
 
+        # max logging
+        logger.debug(f"AI response: {ai_response}")
+
         # ai_response should be a list of objects based on the schema
         if not isinstance(ai_response, list):
             logger.error(f"AI response is not a list as expected. Type: {type(ai_response)}")
