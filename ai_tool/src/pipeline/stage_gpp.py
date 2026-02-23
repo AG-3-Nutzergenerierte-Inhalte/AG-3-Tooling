@@ -24,10 +24,10 @@ def _find_prop_value(props_list: List[Dict[str, Any]], prop_name: str) -> Option
     return None
 
 
-def _process_control(control: Dict[str, Any]) -> Optional[Tuple[str, str, Dict[str, Any]]]:
+def _process_control(control: Dict[str, Any]) -> Optional[Tuple[List[str], str, Dict[str, Any]]]:
     """
     Extracts key details, UUID, and a simplified representation of a control.
-    Returns a tuple containing the key (target_object or 'ISMS'), UUID, and the simplified control.
+    Returns a tuple containing a list of keys (target_objects or ['ISMS']), UUID, and the simplified control.
     """
     uuid = _find_prop_value(control.get("props", []), "alt-identifier")
     if not uuid:
@@ -46,7 +46,10 @@ def _process_control(control: Dict[str, Any]) -> Optional[Tuple[str, str, Dict[s
                     target_obj_val = found_target
                     break  # Exit after finding the first target_object
 
-    key = target_obj_val if target_obj_val else "ISMS"
+    if target_obj_val:
+        keys = [k.strip() for k in target_obj_val.split(',')]
+    else:
+        keys = ["ISMS"]
 
     prose = ""
     if isinstance(parts, list):
@@ -62,7 +65,7 @@ def _process_control(control: Dict[str, Any]) -> Optional[Tuple[str, str, Dict[s
         "prose": prose,
     }
 
-    return key, uuid, simplified_control
+    return keys, uuid, simplified_control
 
 
 def _traverse_and_extract_controls(
@@ -81,12 +84,13 @@ def _traverse_and_extract_controls(
 
             processed_data = _process_control(control)
             if processed_data:
-                key, uuid, simplified_control = processed_data
-                if key == "ISMS":
-                    isms_controls[uuid] = simplified_control
-                else:
-                    target_controls.setdefault(key, {})
-                    target_controls[key][uuid] = simplified_control
+                keys, uuid, simplified_control = processed_data
+                for key in keys:
+                    if key == "ISMS":
+                        isms_controls[uuid] = simplified_control
+                    else:
+                        target_controls.setdefault(key, {})
+                        target_controls[key][uuid] = simplified_control
 
             # Recursively process nested controls
             _traverse_and_extract_controls(control, target_controls, isms_controls)
