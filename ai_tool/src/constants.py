@@ -55,8 +55,8 @@ MATCHING_SCHEMA_PATH = os.path.join(SRC_ROOT, "assets/schemas/matching_schema.js
 OSCAL_COMPONENT_SCHEMA_PATH = os.path.join(REPO_ROOT, "oscal_json_schemas/oscal_component_schema.json")
 
 # --- AI Model Configuration ---
-GROUND_TRUTH_MODEL = "gemini-2.5-flash"
-GROUND_TRUTH_MODEL_PRO = "gemini-3-pro-preview"
+GROUND_TRUTH_MODEL = "gemini-flash-latest"
+GROUND_TRUTH_MODEL_PRO = "gemini-3.1-pro-preview"
 
 # --- API Configuration ---
 # Constants for external API interactions, such as retry logic parameters.

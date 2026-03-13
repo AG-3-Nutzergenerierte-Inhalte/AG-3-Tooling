@@ -47,12 +47,13 @@ class AiClient:
         self.client = genai.Client(
             vertexai=True,
             project=config.gcp_project_id,
-            location=config.region
+            location=config.region,
+            http_options={'api_version': 'v1beta'}
         )
         
         logger.debug(f"System Message Context includes today's date: {current_date}")
 
-    def _prepare_generation_config(self, json_schema: Dict[str, Any]) -> types.GenerateContentConfig:
+    def _prepare_generation_config(self, json_schema: Dict[str, Any], use_thinking: bool = False) -> types.GenerateContentConfig:
         """Prepares and converts the JSON schema for the GenerateContentConfig."""
         try:
             # Create a copy to avoid modifying the original
@@ -65,13 +66,18 @@ class AiClient:
 
         try:
             # Map constants to the new types.GenerateContentConfig structure
-            return types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=schema_for_api,
-                max_output_tokens=API_MAX_OUTPUT_TOKEN,
-                temperature=API_TEMPERATURE,
-                system_instruction=self.system_message
-            )
+            config_kwargs = {
+                "response_mime_type": "application/json",
+                "response_schema": schema_for_api,
+                "max_output_tokens": API_MAX_OUTPUT_TOKEN,
+                "temperature": API_TEMPERATURE,
+                "system_instruction": self.system_message
+            }
+            if use_thinking:
+                config_kwargs["thinking_config"] = types.ThinkingConfig(
+                    thinking_level=types.ThinkingLevel.HIGH
+                )
+            return types.GenerateContentConfig(**config_kwargs)
         except Exception as e:
             logger.error(f"Failed to prepare generation config: {e}", exc_info=True)
             raise ValueError(f"Invalid or incompatible GenerateContentConfig: {e}") from e
@@ -158,7 +164,8 @@ class AiClient:
 
         try:
             # Prepare configuration (includes system_instruction)
-            gen_config = self._prepare_generation_config(json_schema)
+            use_thinking = True if model_to_use == GROUND_TRUTH_MODEL_PRO else False
+            gen_config = self._prepare_generation_config(json_schema, use_thinking=use_thinking)
         except ValueError as e:
             logger.error(f"[{request_context_log}] Configuration failed. Cannot proceed with AI request: {e}")
             raise
