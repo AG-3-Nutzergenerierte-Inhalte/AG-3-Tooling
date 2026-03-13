@@ -38,7 +38,7 @@ def create_oscal_profile(zielobjekt_id, zielobjekt_name, controls):
     """
     profile_uuid = str(uuid.uuid4())
     now_utc = datetime.now(timezone.utc).isoformat()
-    catalog_url = "https://raw.githubusercontent.com/BSI-Bund/Stand-der-Technik-Bibliothek/refs/heads/main/Kompendien/Grundschutz%2B%2B-Kompendium/Grundschutz%2B%2B-Kompendium.json"
+    catalog_url = "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main/Anwenderkataloge/Grundschutz%2B%2B/Grundschutz%2B%2B-catalog.json"
 
     profile = {
         "profile": {

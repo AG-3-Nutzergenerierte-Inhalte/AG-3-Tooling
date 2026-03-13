@@ -106,7 +106,7 @@ def get_component_type(baustein_id: str) -> str:
 
 def get_source_url(local_path: str) -> str:
     """Constructs the correct remote GitHub URL for a given local file path."""
-    base_url = "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main"
+    base_url = "https://raw.githubusercontent.com/AG-3-Nutzergenerierte-Inhalte/Stand-der-Technik-Bibliothek/refs/heads/main/Nutzergenerierte-Inhalte/"
     sdt_root = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek")
 
     # Get the path relative to the submodule root, not the whole repo.
@@ -144,7 +144,7 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
                 "props": statement_props
             })
 
-    props_ns = "https://www.bsi.bund.de/ns/grundschutz"
+    props_ns = "https://github.com/BSI-Bund/Stand-der-Technik-Bibliothek/tree/main/Dokumentation/namespaces"
 
     # Extract props from generated data, matching specific user requirements
     # We use 'or' to handle cases where the key exists but value is None
