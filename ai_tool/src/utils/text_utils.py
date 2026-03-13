@@ -6,6 +6,19 @@ This module provides utility functions for text manipulation, such as sanitizing
 
 import regex as re
 
+def replace_umlauts(text: str) -> str:
+    """
+    Replaces German umlauts and 'ß' with their equivalents.
+    """
+    mapping = {
+        'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
+        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
+        'ß': 'ss'
+    }
+    for char, replacement in mapping.items():
+        text = text.replace(char, replacement)
+    return text
+
 def sanitize_filename(filename):
     """
     Sanitizes a string to be used as a filename.
@@ -16,6 +29,8 @@ def sanitize_filename(filename):
     Returns:
         str: The sanitized filename.
     """
+    # Replace umlauts
+    filename = replace_umlauts(filename)
     # Replace spaces with underscores
     filename = filename.replace(' ', '_')
     # Remove special characters

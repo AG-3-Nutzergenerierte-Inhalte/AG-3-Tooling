@@ -27,7 +27,7 @@ def _find_prop_value(props_list: List[Dict[str, Any]], prop_name: str) -> Option
 def _process_control(control: Dict[str, Any]) -> Optional[Tuple[List[str], str, Dict[str, Any]]]:
     """
     Extracts key details, UUID, and a simplified representation of a control.
-    Returns a tuple containing a list of keys (target_objects or ['ISMS']), UUID, and the simplified control.
+    Returns a tuple containing a list of keys (target_objects or special categories), UUID, and the simplified control.
     """
     uuid = _find_prop_value(control.get("props", []), "alt-identifier")
     if not uuid:
@@ -36,27 +36,31 @@ def _process_control(control: Dict[str, Any]) -> Optional[Tuple[List[str], str, 
         return None
 
     target_obj_val = None
+    prose = ""
+    modal_verb = None
     parts = control.get("parts", [])
     if isinstance(parts, list):
         for part in parts:
-            if isinstance(part, dict):
-                # Attempt to find target_objects in the properties of the part
-                found_target = _find_prop_value(part.get("props", []), "target_objects")
-                if found_target:
-                    target_obj_val = found_target
-                    break  # Exit after finding the first target_object
+            if not isinstance(part, dict):
+                continue
+            # Attempt to find target_objects in the properties of the part
+            found_target = _find_prop_value(part.get("props", []), "target_objects")
+            if found_target and not target_obj_val:
+                target_obj_val = found_target
+
+            if part.get("name") == "statement":
+                prose = part.get("prose", "")
+                modal_verb = _find_prop_value(part.get("props", []), "modalverb")
 
     if target_obj_val:
         keys = [k.strip() for k in target_obj_val.split(',')]
     else:
-        keys = ["ISMS"]
-
-    prose = ""
-    if isinstance(parts, list):
-        for part in parts:
-            if isinstance(part, dict) and part.get("name") == "statement":
-                prose = part.get("prose", "")
-                break
+        control_id = control.get("id", "")
+        prefix = control_id.split('.')[0] if '.' in control_id else "GENERAL"
+        if modal_verb == "MUSS":
+            keys = ["Methodik"]
+        else:
+            keys = [f"{prefix}prozesse"]
 
     simplified_control = {
         "id": control.get("id"),
@@ -70,12 +74,11 @@ def _process_control(control: Dict[str, Any]) -> Optional[Tuple[List[str], str, 
 
 def _traverse_and_extract_controls(
     node: Dict[str, Any],
-    target_controls: Dict[str, Any],
-    isms_controls: Dict[str, Any]
+    target_controls: Dict[str, Any]
 ) -> None:
     """
     Recursively traverses the JSON structure to find and process all control objects,
-    separating them into ISMS and target-specific controls.
+    mapping them to their applicable target objects or special categories (Methodik/prozesse).
     """
     if "controls" in node and isinstance(node["controls"], list):
         for control in node["controls"]:
@@ -86,41 +89,36 @@ def _traverse_and_extract_controls(
             if processed_data:
                 keys, uuid, simplified_control = processed_data
                 for key in keys:
-                    if key == "ISMS":
-                        isms_controls[uuid] = simplified_control
-                    else:
-                        target_controls.setdefault(key, {})
-                        target_controls[key][uuid] = simplified_control
+                    target_controls.setdefault(key, {})
+                    target_controls[key][uuid] = simplified_control
 
             # Recursively process nested controls
-            _traverse_and_extract_controls(control, target_controls, isms_controls)
+            _traverse_and_extract_controls(control, target_controls)
 
     if "groups" in node and isinstance(node["groups"], list):
         for group in node["groups"]:
             if isinstance(group, dict):
-                _traverse_and_extract_controls(group, target_controls, isms_controls)
+                _traverse_and_extract_controls(group, target_controls)
 
 
-def _create_target_controls_map() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def _create_target_controls_map() -> Dict[str, Any]:
     """
-    Loads the G++ Kompendium and flattens it into a target-controls-map and an isms-controls-map.
+    Loads the G++ Kompendium and flattens it into a target-controls-map.
     """
     logger.info(f"Loading G++ Kompendium from {GPP_KOMPENDIUM_JSON_PATH}...")
     data = load_json_file(GPP_KOMPENDIUM_JSON_PATH)
     if not data or 'catalog' not in data:
         logger.error("G++ Kompendium is empty or missing 'catalog' key.")
-        return {}, {}
+        return {}
 
     logger.info("Starting recursive extraction of controls...")
     target_controls: Dict[str, Any] = {}
-    isms_controls: Dict[str, Any] = {}
-    _traverse_and_extract_controls(data['catalog'], target_controls, isms_controls)
+    _traverse_and_extract_controls(data['catalog'], target_controls)
 
-    total_target = sum(len(controls) for controls in target_controls.values())
-    total_isms = len(isms_controls)
-    logger.info(f"Extraction complete. Found {total_target} target-specific and {total_isms} ISMS controls.")
+    total_mappings = sum(len(controls) for controls in target_controls.values())
+    logger.info(f"Extraction complete. Found {total_mappings} mappings across all targets/categories.")
 
-    return target_controls, isms_controls
+    return target_controls
 
 
 def _get_parent_names_recursive(
@@ -190,8 +188,8 @@ def run_stage_gpp():
     logger.info("Starting stage_gpp...")
 
     # C.2: Flatten the GPP Kompendium into a target-controls-map
-    target_controls_map, isms_controls_map = _create_target_controls_map()
-    if not target_controls_map and not isms_controls_map:
+    target_controls_map = _create_target_controls_map()
+    if not target_controls_map:
         logger.error("Failed to create target-controls-map. Aborting stage_gpp.")
         return
 
@@ -215,10 +213,11 @@ def run_stage_gpp():
 
         final_zielobjekt_controls_map[uuid] = sorted(list(applicable_controls))
 
-    # Add the collected ISMS controls to the final map
-    if isms_controls_map:
-        isms_ids = {control['id'] for control in isms_controls_map.values() if 'id' in control}
-        final_zielobjekt_controls_map["ISMS"] = sorted(list(isms_ids))
+    # Add special categories (Methodik, prozesse) that are not linked to Zielobjekte CSV
+    for key, controls in target_controls_map.items():
+        if key == "Methodik" or key.endswith("prozesse"):
+            isms_ids = {control['id'] for control in controls.values() if 'id' in control}
+            final_zielobjekt_controls_map[key] = sorted(list(isms_ids))
 
     # C.6: Store the final map
     output_data = {"zielobjekt_controls_map": final_zielobjekt_controls_map}

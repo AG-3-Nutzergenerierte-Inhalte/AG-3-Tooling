@@ -85,8 +85,8 @@ def run_stage_profiles():
 
     for zielobjekt_id, controls in zielobjekt_controls.get("zielobjekt_controls_map", {}).items():
         zielobjekt_name = ""
-        if zielobjekt_id == "ISMS":
-            zielobjekt_name = "ISMS"
+        if zielobjekt_id == "Methodik" or zielobjekt_id.endswith("prozesse"):
+            zielobjekt_name = zielobjekt_id
         elif zielobjekt_id in zielobjekt_name_map:
             zielobjekt_name = zielobjekt_name_map[zielobjekt_id]
         else:

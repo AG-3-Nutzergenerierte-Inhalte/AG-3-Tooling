@@ -25,7 +25,7 @@ class TestStageProfiles(unittest.TestCase):
                 "efd76832-f5a1-432a-836d-c8d5c6d212cc": ["ASST.3.1", "ASST.3.1.1"],
                 "d2a23b62-9c66-4f72-98e2-17518d5dbe0f": ["ASST.3.12"],
                 "00000000-0000-0000-0000-000000000000": ["TEST.1.1"],
-                "ISMS": ["ISMS.1", "ISMS.2"]
+                "Methodik": ["ISMS.1", "ISMS.2"]
             }
         }
         self.mock_zielobjekte_csv = [
@@ -70,11 +70,11 @@ class TestStageProfiles(unittest.TestCase):
         self.assertEqual(profile2_content['profile']['metadata']['title'], 'd2a23b62-9c66-4f72-98e2-17518d5dbe0f Cloud-Dienste')
         self.assertEqual(profile2_content['profile']['imports'][0]['include-controls'][0]['with-ids'], ["ASST.3.12"])
 
-        # Profile 3: ISMS
-        isms_profile_args = next(args for args in call_args_list if "isms_profile.json" in args[0])
-        self.assertIsNotNone(isms_profile_args)
-        profile3_content = isms_profile_args[1]
-        self.assertEqual(profile3_content['profile']['metadata']['title'], 'ISMS ISMS')
+        # Profile 3: Methodik
+        methodik_profile_args = next(args for args in call_args_list if "methodik_profile.json" in args[0])
+        self.assertIsNotNone(methodik_profile_args)
+        profile3_content = methodik_profile_args[1]
+        self.assertEqual(profile3_content['profile']['metadata']['title'], 'Methodik Methodik')
         self.assertEqual(profile3_content['profile']['imports'][0]['include-controls'][0]['with-ids'], ["ISMS.1", "ISMS.2"])
 
         # Verify that a warning is logged for the missing Zielobjekt
