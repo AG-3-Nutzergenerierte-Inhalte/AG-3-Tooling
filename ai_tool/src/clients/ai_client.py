@@ -48,7 +48,7 @@ class AiClient:
             vertexai=True,
             project=config.gcp_project_id,
             location=config.region,
-            http_options={'api_version': 'v1beta'}
+            http_options={'api_version': 'v1'}
         )
         
         logger.debug(f"System Message Context includes today's date: {current_date}")

@@ -174,6 +174,15 @@ def parse_bsi_2023_controls(
 
             for baustein in bausteine_in_group:
                 if baustein.get("class") == "baustein":
+                    baustein_id = baustein.get("id", "")
+                    baustein_main_group = baustein_id.split('.')[0].upper()
+
+                    # Decide which list to add the baustein to
+                    if (baustein_main_group in ALLOWED_MAIN_GROUPS or
+                            baustein_id.upper() in ALLOWED_PROCESS_BAUSTEINE):
+                        target_list = parsed_bausteine
+                    else:
+                        target_list = filtered_out_bausteine
                     target_list.append(_parse_baustein_details(baustein))
 
     except Exception as e:
