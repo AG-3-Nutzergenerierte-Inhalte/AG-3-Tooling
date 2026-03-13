@@ -86,6 +86,9 @@ def chunk_controls(control_ids: list, max_chunk_size: int = 50) -> list:
 
 def get_component_type(baustein_id: str) -> str:
     """Determines the component type based on the Baustein ID prefix."""
+    if baustein_id == "Methodik" or baustein_id.endswith("prozesse"):
+        return "policy"
+
     prefix = baustein_id.split('.')[0]
     type_map = {
         "NET": "interconnection",
@@ -150,7 +153,9 @@ def build_oscal_control(control_id: str, title: str, generated_data: dict) -> di
         {"name": "phase", "value": generated_data.get('phase') or 'N/A', "ns": props_ns},
         {"name": "effective_on_c", "value": str(generated_data.get("effective_on_c") or "").lower(), "ns": props_ns},
         {"name": "effective_on_i", "value": str(generated_data.get("effective_on_i") or "").lower(), "ns": props_ns},
-        {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a") or "").lower(), "ns": props_ns}
+        {"name": "effective_on_a", "value": str(generated_data.get("effective_on_a") or "").lower(), "ns": props_ns},
+        {"name": "level", "value": generated_data.get("level") or "N/A", "ns": props_ns},
+        {"name": "practice", "value": generated_data.get("practice") or "N/A", "ns": props_ns},
     ]
 
     return {
@@ -511,18 +516,17 @@ async def run_stage_component():
     for baustein_id, zielobjekt_uuid in baustein_zielobjekt_map.get("baustein_zielobjekt_map", {}).items():
         tasks.append(process_single_baustein(baustein_id, zielobjekt_uuid))
 
-    # Add special ISMS Baustein to tasks
-    async def process_isms_baustein():
+    # Add special Methodik Baustein to tasks
+    async def process_methodik_baustein():
         async with sem:
-            logger.info("Processing special ISMS Baustein")
-            isms_baustein_id = "ISMS"
-            isms_baustein_title = "ISMS"
-            isms_profile_path = os.path.join(profile_dir, "isms_profile.json")
-            # isms_mapping = prozessbausteine_mapping.get("prozessbausteine_mapping", {}) # Unused
-            await generate_detailed_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, bsi_catalog, gpp_controls_lookup, output_dir, ai_client)
-            generate_minimal_component(isms_baustein_id, isms_baustein_title, "ISMS", isms_profile_path, output_dir)
+            logger.info("Processing special Methodik Baustein")
+            methodik_baustein_id = "ISMS" # Context is still ISMS.1
+            methodik_baustein_title = "Methodik"
+            methodik_profile_path = os.path.join(profile_dir, "methodik_profile.json")
+            await generate_detailed_component(methodik_baustein_id, methodik_baustein_title, "Methodik", methodik_profile_path, bsi_catalog, gpp_controls_lookup, output_dir, ai_client)
+            generate_minimal_component(methodik_baustein_id, methodik_baustein_title, "Methodik", methodik_profile_path, output_dir)
 
-    tasks.append(process_isms_baustein())
+    tasks.append(process_methodik_baustein())
 
     # Run all tasks concurrently
     await asyncio.gather(*tasks)
@@ -532,17 +536,26 @@ async def run_stage_component():
     logger.info("Finished Stage: Component Definition Generation")
 
 def generate_zielobjekt_components():
-    """Generates minimal component files for all Zielobjekte."""
+    """Generates minimal component files for all Zielobjekte and special categories."""
     logger.info("Starting generation of Zielobjekt components.")
 
-    zielobjekte_data = read_csv_file(ZIELOBJEKTE_CSV_PATH)
-    if not zielobjekte_data:
-        logger.error(f"Could not load Zielobjekte from {ZIELOBJEKTE_CSV_PATH}")
+    zielobjekt_controls = read_json_file(ZIELOBJEKT_CONTROLS_JSON_PATH)
+    if not zielobjekt_controls:
+        logger.error(f"Could not load Zielobjekt controls from {ZIELOBJEKT_CONTROLS_JSON_PATH}")
         return
 
-    for row in zielobjekte_data:
-        zielobjekt_name = row.get('Zielobjekt')
-        if not zielobjekt_name:
+    zielobjekte_data = read_csv_file(ZIELOBJEKTE_CSV_PATH)
+    zielobjekt_name_map = {}
+    if zielobjekte_data:
+        zielobjekt_name_map = {row['UUID'].strip(): row['Zielobjekt'].strip() for row in zielobjekte_data if 'UUID' in row and 'Zielobjekt' in row}
+
+    for zielobjekt_id, controls in zielobjekt_controls.get("zielobjekt_controls_map", {}).items():
+        zielobjekt_name = ""
+        if zielobjekt_id == "Methodik" or zielobjekt_id.endswith("prozesse"):
+            zielobjekt_name = zielobjekt_id
+        elif zielobjekt_id in zielobjekt_name_map:
+            zielobjekt_name = zielobjekt_name_map[zielobjekt_id]
+        else:
             continue
 
         sanitized_name = sanitize_filename(zielobjekt_name)
@@ -578,7 +591,7 @@ def generate_zielobjekt_components():
                 },
                 "components": [{
                     "uuid": str(uuid.uuid4()),
-                    "type": "service",
+                    "type": get_component_type(zielobjekt_id),
                     "title": zielobjekt_name,
                     "description": f"This component imports the profile for {zielobjekt_name}.",
                     "control-implementations": [{
