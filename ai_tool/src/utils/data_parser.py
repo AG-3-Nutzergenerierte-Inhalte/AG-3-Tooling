@@ -166,11 +166,6 @@ def parse_bsi_2023_controls(
                 return parsed_baustein
 
             bausteine_in_group = main_group.get("groups", [])
-            target_list = (
-                parsed_bausteine
-                if main_group.get("id", "").upper() in ALLOWED_MAIN_GROUPS
-                else filtered_out_bausteine
-            )
 
             for baustein in bausteine_in_group:
                 if baustein.get("class") == "baustein":
