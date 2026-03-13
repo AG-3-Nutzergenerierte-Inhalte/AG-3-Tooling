@@ -20,7 +20,7 @@ REPO_ROOT = os.path.abspath(os.path.join(SRC_ROOT, "..", ".."))
 ANFORDERUNG_ID_PATTERN = re.compile(r"^.*$")
 
 # --- Data File Paths ---
-ZIELOBJEKTE_CSV_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Dokumentation/namespaces/zielobjekte.csv")
+ZIELOBJEKTE_CSV_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Dokumentation/namespaces/zielobjektkategorien.csv")
 BSI_2023_JSON_PATH = os.path.join(REPO_ROOT, "ai_tool/src/assets/json/BSI_GS_OSCAL_current_2023_benutzerdefinierte_251121.json")
 GPP_KOMPENDIUM_JSON_PATH = os.path.join(REPO_ROOT, "Stand-der-Technik-Bibliothek/Anwenderkataloge/Grundschutz++/Grundschutz++-catalog.json")
 
