@@ -11,6 +11,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 
+from config import app_config
 from constants import (
     ZIELOBJEKT_CONTROLS_JSON_PATH,
     SDT_PROFILES_DIR,
@@ -98,6 +99,10 @@ def run_stage_profiles():
         sanitized_name = sanitize_filename(zielobjekt_name)
         output_filename = f"{sanitized_name}_profile.json"
         output_path = os.path.join(output_dir, output_filename)
+
+        if os.path.exists(output_path) and not app_config.overwrite_temp_files:
+            logger.info(f"Profile already exists at {output_path} and OVERWRITE_TEMP_FILES is false. Skipping.")
+            continue
 
         write_json_file(output_path, profile)
         logger.info(f"Generated OSCAL profile for {zielobjekt_name} at {output_path}")

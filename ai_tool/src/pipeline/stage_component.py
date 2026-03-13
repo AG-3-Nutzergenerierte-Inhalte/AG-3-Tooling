@@ -171,6 +171,11 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
     sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
     sanitized_baustein_id = sanitize_filename(baustein_id)
     output_filename = f"{sanitized_zielobjekt_name}_{sanitized_baustein_id}-enhanced-component.json"
+    output_path = os.path.join(output_dir, output_filename)
+
+    if os.path.exists(output_path) and not app_config.overwrite_temp_files:
+        logger.info(f"Enhanced component already exists at {output_path} and OVERWRITE_TEMP_FILES is false. Skipping.")
+        return
 
     if not os.path.exists(profile_path):
         logger.warning(f"Profile not found for {baustein_id} at {profile_path}. Skipping detailed component.")
@@ -360,7 +365,6 @@ async def generate_detailed_component(baustein_id: str, baustein_title: str, zie
         }
     }
 
-    output_path = os.path.join(output_dir, output_filename)
     write_json_file(output_path, component_definition)
 
     validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
@@ -371,6 +375,11 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, zielobjekt
     sanitized_zielobjekt_name = sanitize_filename(zielobjekt_name)
     sanitized_baustein_id = sanitize_filename(baustein_id)
     output_filename = f"{sanitized_zielobjekt_name}_{sanitized_baustein_id}-component.json"
+    output_path = os.path.join(output_dir, output_filename)
+
+    if os.path.exists(output_path) and not app_config.overwrite_temp_files:
+        logger.info(f"Minimal component already exists at {output_path} and OVERWRITE_TEMP_FILES is false. Skipping.")
+        return
 
     if not os.path.exists(profile_path):
         logger.warning(f"Profile not found for {baustein_id} at {profile_path}. Skipping minimal component.")
@@ -413,7 +422,6 @@ def generate_minimal_component(baustein_id: str, baustein_title: str, zielobjekt
         }
     }
 
-    output_path = os.path.join(output_dir, output_filename)
     write_json_file(output_path, component_definition)
 
     validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
@@ -559,6 +567,13 @@ def generate_zielobjekt_components():
             continue
 
         sanitized_name = sanitize_filename(zielobjekt_name)
+        output_filename = f"{sanitized_name}-component.json"
+        output_path = os.path.join(SDT_COMPONENTS_GPP_DIR, output_filename)
+
+        if os.path.exists(output_path) and not app_config.overwrite_temp_files:
+            logger.info(f"Zielobjekt component already exists at {output_path} and OVERWRITE_TEMP_FILES is false. Skipping.")
+            continue
+
         profile_filename = f"{sanitized_name}_profile.json"
         profile_path = os.path.join(SDT_PROFILES_DIR, profile_filename)
 
@@ -604,8 +619,6 @@ def generate_zielobjekt_components():
             }
         }
 
-        output_filename = f"{sanitized_name}-component.json"
-        output_path = os.path.join(SDT_COMPONENTS_GPP_DIR, output_filename)
         write_json_file(output_path, component_definition)
         validate_oscal(output_path, OSCAL_COMPONENT_SCHEMA_PATH)
         logger.info(f"Generated component for Zielobjekt: {zielobjekt_name}")

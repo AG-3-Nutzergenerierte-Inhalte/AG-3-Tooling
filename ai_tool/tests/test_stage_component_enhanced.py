@@ -27,7 +27,11 @@ class TestStageComponentEnhanced(unittest.IsolatedAsyncioTestCase):
     @patch('pipeline.stage_component.validate_oscal')
     @patch('pipeline.stage_component.read_csv_file')
     @patch('os.path.exists')
-    async def test_generate_detailed_component_enhanced(self, mock_exists, mock_read_csv, mock_validate_oscal, mock_write_json, mock_read_json, mock_read_text):
+    @patch('pipeline.stage_component.app_config')
+    async def test_generate_detailed_component_enhanced(self, mock_app_config, mock_exists, mock_read_csv, mock_validate_oscal, mock_write_json, mock_read_json, mock_read_text):
+        # Mock app config for overwrite_temp_files
+        mock_app_config.overwrite_temp_files = True
+
         # Mock file existence
         mock_exists.return_value = True
 
